@@ -1,0 +1,52 @@
+{
+  "name": "agriculture-portal",
+  "version": "0.1.0",
+  "private": true,
+  "dependencies": {
+    "@testing-library/dom": "^10.4.0",
+    "@testing-library/jest-dom": "^6.6.3",
+    "@testing-library/react": "^16.3.0",
+    "@testing-library/user-event": "^13.5.0",
+    "@vercel/analytics": "^1.5.0",
+    "@vercel/speed-insights": "^2.0.0",
+    "firebase": "^12.9.0",
+    "i18next": "^25.3.2",
+    "react": "^18.2.0",
+    "react-dom": "^18.2.0",
+    "react-i18next": "^15.6.0",
+    "react-icons": "^5.5.0",
+    "react-router-dom": "^7.6.3",
+    "react-scripts": "5.0.1",
+    "web-vitals": "^2.1.4"
+  },
+  "scripts": {
+    "start": "set PORT=2727 && set NODE_OPTIONS=--max_old_space_size=4096 && react-scripts start",
+    "dev": "set PORT=2727 && set NODE_OPTIONS=--max_old_space_size=4096 && react-scripts start",
+    "build": "set NODE_OPTIONS=--max_old_space_size=4096 && react-scripts build",
+    "build:analyze": "npm run build && npx serve -s build",
+    "test": "react-scripts test",
+    "eject": "react-scripts eject",
+    "optimize-images": "echo 'Run image optimization tools here'",
+    "bundle-size": "npm run build && npx bundlesize",
+    "setup:images": "node setup-smart-images.js",
+    "setup:images:create": "node setup-smart-images.js --create-default"
+  },
+  "eslintConfig": {
+    "extends": [
+      "react-app",
+      "react-app/jest"
+    ]
+  },
+  "browserslist": {
+    "production": [
+      ">0.2%",
+      "not dead",
+      "not op_mini all"
+    ],
+    "development": [
+      "last 1 chrome version",
+      "last 1 firefox version",
+      "last 1 safari version"
+    ]
+  }
+}

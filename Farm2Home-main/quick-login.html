@@ -1,0 +1,258 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Quick Login Helper - Farm2Home</title>
+    <style>
+        body {
+            font-family: Arial, sans-serif;
+            max-width: 600px;
+            margin: 50px auto;
+            padding: 20px;
+            background: linear-gradient(135deg, #667eea 0%, #764ba2 100%);
+            min-height: 100vh;
+        }
+        .container {
+            background: white;
+            border-radius: 10px;
+            padding: 30px;
+            box-shadow: 0 10px 40px rgba(0,0,0,0.2);
+        }
+        h1 {
+            color: #2c3e50;
+            text-align: center;
+            margin-bottom: 10px;
+        }
+        .subtitle {
+            text-align: center;
+            color: #7f8c8d;
+            margin-bottom: 30px;
+        }
+        .btn-group {
+            display: flex;
+            gap: 10px;
+            margin-bottom: 20px;
+        }
+        button {
+            flex: 1;
+            padding: 15px;
+            border: none;
+            border-radius: 5px;
+            font-size: 16px;
+            cursor: pointer;
+            transition: all 0.3s;
+            font-weight: bold;
+        }
+        .btn-farmer {
+            background: #27ae60;
+            color: white;
+        }
+        .btn-farmer:hover {
+            background: #229954;
+            transform: translateY(-2px);
+        }
+        .btn-consumer {
+            background: #3498db;
+            color: white;
+        }
+        .btn-consumer:hover {
+            background: #2980b9;
+            transform: translateY(-2px);
+        }
+        .btn-clear {
+            background: #e74c3c;
+            color: white;
+        }
+        .btn-clear:hover {
+            background: #c0392b;
+            transform: translateY(-2px);
+        }
+        .btn-open {
+            background: #95a5a6;
+            color: white;
+            width: 100%;
+        }
+        .btn-open:hover {
+            background: #7f8c8d;
+        }
+        .status {
+            padding: 15px;
+            border-radius: 5px;
+            margin: 20px 0;
+            font-size: 14px;
+        }
+        .success {
+            background: #d4edda;
+            color: #155724;
+            border: 1px solid #c3e6cb;
+        }
+        .info {
+            background: #d1ecf1;
+            color: #0c5460;
+            border: 1px solid #bee5eb;
+        }
+        .warning {
+            background: #fff3cd;
+            color: #856404;
+            border: 1px solid #ffeaa7;
+        }
+        .current-user {
+            background: #f8f9fa;
+            padding: 15px;
+            border-radius: 5px;
+            margin: 20px 0;
+        }
+        .current-user h3 {
+            margin-top: 0;
+            color: #2c3e50;
+        }
+        .user-info {
+            font-family: monospace;
+            font-size: 12px;
+            background: #ecf0f1;
+            padding: 10px;
+            border-radius: 3px;
+            overflow-x: auto;
+        }
+        code {
+            background: #ecf0f1;
+            padding: 2px 6px;
+            border-radius: 3px;
+            font-size: 12px;
+        }
+    </style>
+</head>
+<body>
+    <div class="container">
+        <h1>🚜 Quick Login Helper</h1>
+        <p class="subtitle">Development Mode - Mock Authentication</p>
+        
+        <div id="status"></div>
+        
+        <div class="current-user" id="currentUser" style="display: none;">
+            <h3>Current User:</h3>
+            <div class="user-info" id="userInfo"></div>
+        </div>
+
+        <h3>Quick Login As:</h3>
+        <div class="btn-group">
+            <button class="btn-farmer" onclick="loginAsFarmer()">
+                👨‍🌾 Farmer
+            </button>
+            <button class="btn-consumer" onclick="loginAsConsumer()">
+                🛒 Consumer
+            </button>
+        </div>
+
+        <h3>Actions:</h3>
+        <div class="btn-group">
+            <button class="btn-clear" onclick="clearAuth()">
+                🗑️ Logout / Clear Data
+            </button>
+        </div>
+
+        <button class="btn-open" onclick="openApp()">
+            🌐 Open App (Port 1083)
+        </button>
+
+        <div class="info" style="margin-top: 30px;">
+            <strong>💡 How to use:</strong>
+            <ol>
+                <li>Click "Farmer" or "Consumer" to auto-login</li>
+                <li>Click "Open App" to launch the application</li>
+                <li>You'll be logged in and ready to test features</li>
+                <li>Use "Logout" to clear data and start fresh</li>
+            </ol>
+        </div>
+
+        <div class="warning" style="margin-top: 20px;">
+            <strong>⚠️ Development Only:</strong><br>
+            This is a mock authentication system for testing. 
+            Data is stored in browser's localStorage and will work without Firebase setup.
+        </div>
+    </div>
+
+    <script>
+        // Check current auth status on load
+        window.addEventListener('load', checkAuthStatus);
+
+        function checkAuthStatus() {
+            const user = localStorage.getItem('mockUserData');
+            if (user) {
+                try {
+                    const userData = JSON.parse(user);
+                    document.getElementById('currentUser').style.display = 'block';
+                    document.getElementById('userInfo').textContent = JSON.stringify(userData, null, 2);
+                    showStatus('✅ User is logged in', 'success');
+                } catch (e) {
+                    showStatus('⚠️ Invalid user data found', 'warning');
+                }
+            } else {
+                document.getElementById('currentUser').style.display = 'none';
+                showStatus('ℹ️ No user logged in', 'info');
+            }
+        }
+
+        function loginAsFarmer() {
+            const farmer = {
+                uid: 'farmer_dev_' + Date.now(),
+                email: 'farmer@test.com',
+                name: 'Test Farmer',
+                phone: '9876543210',
+                role: 'farmer',
+                createdAt: new Date().toISOString()
+            };
+            
+            localStorage.setItem('mockUserData', JSON.stringify(farmer));
+            showStatus('✅ Logged in as Farmer! Email: farmer@test.com', 'success');
+            checkAuthStatus();
+        }
+
+        function loginAsConsumer() {
+            const consumer = {
+                uid: 'consumer_dev_' + Date.now(),
+                email: 'consumer@test.com',
+                name: 'Test Consumer',
+                phone: '9876543211',
+                role: 'consumer',
+                createdAt: new Date().toISOString()
+            };
+            
+            localStorage.setItem('mockUserData', JSON.stringify(consumer));
+            showStatus('✅ Logged in as Consumer! Email: consumer@test.com', 'success');
+            checkAuthStatus();
+        }
+
+        function clearAuth() {
+            localStorage.removeItem('mockUserData');
+            localStorage.removeItem('crops');
+            showStatus('🗑️ All data cleared. You are logged out.', 'success');
+            checkAuthStatus();
+        }
+
+        function openApp() {
+            const user = localStorage.getItem('mockUserData');
+            if (!user) {
+                showStatus('⚠️ Please login first before opening the app', 'warning');
+                return;
+            }
+            
+            const userData = JSON.parse(user);
+            const url = userData.role === 'farmer' 
+                ? 'http://localhost:1083/farmer' 
+                : 'http://localhost:1083/consumer';
+            
+            window.open(url, '_blank');
+            showStatus('🌐 Opening app in new tab...', 'info');
+        }
+
+        function showStatus(message, type) {
+            const status = document.getElementById('status');
+            status.innerHTML = message;
+            status.className = 'status ' + type;
+            status.style.display = 'block';
+        }
+    </script>
+</body>
+</html>

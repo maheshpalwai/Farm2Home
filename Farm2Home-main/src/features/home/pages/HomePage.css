@@ -1,0 +1,399 @@
+/* HomePage Responsive Styles */
+
+/* Footer Styles */
+.footer-wrapper {
+  position: relative;
+  margin-top: 80px;
+  filter: drop-shadow(0 -3px 10px rgba(0, 0, 0, 0.08));
+}
+
+.footer-logo {
+  position: absolute;
+  top: -50px;
+  left: 50%;
+  transform: translateX(-50%);
+  width: 140px;
+  height: 140px;
+  border-radius: 50%;
+  overflow: visible;
+  border: none;
+  box-shadow: 0 4px 20px rgba(0, 0, 0, 0.15);
+  z-index: 2;
+  background: white;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  padding: 10px;
+}
+
+.footer-logo img {
+  width: 100%;
+  height: 100%;
+  object-fit: contain;
+  filter: drop-shadow(0 2px 4px rgba(0, 0, 0, 0.1));
+}
+
+.footer-curve {
+  position: relative;
+  width: 100%;
+  height: 80px;
+  overflow: hidden;
+}
+
+.footer-content {
+  background: #157F3D;
+  padding: 30px 30px 15px;
+  color: white;
+}
+
+.footer-columns {
+  display: flex;
+  justify-content: space-between;
+  max-width: 1200px;
+  margin: 0 auto;
+  flex-wrap: wrap;
+  gap: 30px;
+}
+
+.footer-col {
+  flex: 1;
+  min-width: 200px;
+}
+
+.footer-col-header {
+  font-size: 16px;
+  font-weight: 700;
+  margin-bottom: 12px;
+  color: white;
+  text-transform: uppercase;
+  letter-spacing: 0.5px;
+}
+
+.footer-links {
+  list-style: none;
+  padding: 0;
+  margin: 0;
+}
+
+.footer-link-item {
+  margin-bottom: 8px;
+  cursor: pointer;
+}
+
+.footer-link {
+  color: rgba(255, 255, 255, 0.85);
+  text-decoration: none;
+  transition: all 0.3s ease;
+  display: inline-block;
+  font-size: 14px;
+}
+
+.footer-link:hover {
+  color: white;
+  transform: translateX(3px);
+}
+
+.contact-paragraph {
+  color: rgba(255, 255, 255, 0.85);
+  line-height: 1.6;
+  margin-bottom: 8px;
+  font-size: 14px;
+}
+
+.contact-paragraph strong {
+  font-size: 14px;
+  color: white;
+}
+
+.highlight-phone {
+  color: #FFD700;
+  font-weight: 600;
+  text-decoration: none;
+  transition: all 0.3s ease;
+  font-size: 14px;
+}
+
+.highlight-phone:hover {
+  color: #FFF;
+  text-shadow: 0 0 8px rgba(255, 215, 0, 0.4);
+}
+
+.contact-email {
+  color: #FFD700;
+  text-decoration: none;
+  font-weight: 600;
+  transition: all 0.3s ease;
+  font-size: 14px;
+}
+
+.contact-email:hover {
+  color: #FFF;
+  text-shadow: 0 0 8px rgba(255, 215, 0, 0.4);
+}
+
+.app-btn {
+  display: inline-flex;
+  align-items: center;
+  gap: 8px;
+  background: white;
+  color: #157F3D;
+  border: none;
+  padding: 8px 16px;
+  border-radius: 6px;
+  font-size: 14px;
+  font-weight: 600;
+  cursor: pointer;
+  transition: all 0.3s ease;
+  margin-bottom: 8px;
+  width: fit-content;
+}
+
+.app-btn:hover {
+  background: #FFD700;
+  transform: translateY(-2px);
+  box-shadow: 0 3px 10px rgba(0, 0, 0, 0.15);
+}
+
+.social-row {
+  border-top: 1px solid rgba(255, 255, 255, 0.15);
+  padding-top: 15px;
+  margin-top: 20px;
+  max-width: 1200px;
+  margin-left: auto;
+  margin-right: auto;
+}
+
+.social-icons-container {
+  display: flex;
+  justify-content: center;
+  align-items: center;
+  gap: 15px;
+  margin-bottom: 12px;
+}
+
+.social-icon {
+  color: white;
+  font-size: 20px;
+  transition: all 0.3s ease;
+  cursor: pointer;
+}
+
+.social-icon:hover {
+  color: #FFD700;
+  transform: scale(1.15);
+}
+
+.copyright-text {
+  text-align: center;
+  color: rgba(255, 255, 255, 0.75);
+  font-size: 12px;
+  margin-top: 10px;
+  padding-bottom: 5px;
+}
+
+/* Responsive Design */
+@media (max-width: 1024px) {
+  .footer-content {
+    padding: 25px 25px 12px;
+  }
+  
+  .footer-columns {
+    gap: 25px;
+  }
+  
+  .footer-col {
+    min-width: 180px;
+  }
+  
+  .footer-logo {
+    width: 120px;
+    height: 120px;
+    top: -70px;
+    padding: 8px;
+  }
+  
+  .footer-curve {
+    height: 70px;
+  }
+}
+
+@media (max-width: 768px) {
+  .footer-wrapper {
+    margin-top: 60px;
+  }
+  
+  .footer-logo {
+    width: 100px;
+    height: 100px;
+    top: -60px;
+    padding: 7px;
+  }
+  
+  .footer-curve {
+    height: 60px;
+  }
+  
+  .footer-content {
+    padding: 20px 15px 12px;
+  }
+  
+  .footer-columns {
+    flex-direction: column;
+    gap: 20px;
+  }
+  
+  .footer-col {
+    min-width: 100%;
+    text-align: center;
+  }
+  
+  .footer-col-header {
+    font-size: 15px;
+    margin-bottom: 10px;
+  }
+  
+  .footer-link {
+    font-size: 13px;
+  }
+  
+  .contact-paragraph {
+    font-size: 13px;
+  }
+  
+  .contact-paragraph strong {
+    font-size: 13px;
+  }
+  
+  .app-btn {
+    font-size: 13px;
+    padding: 7px 14px;
+    margin-left: auto;
+    margin-right: auto;
+  }
+  
+  .social-row {
+    padding-top: 12px;
+    margin-top: 15px;
+  }
+  
+  .social-icons-container {
+    gap: 12px;
+  }
+  
+  .social-icon {
+    font-size: 18px;
+  }
+}
+
+@media (max-width: 480px) {
+  .footer-wrapper {
+    margin-top: 50px;
+  }
+  
+  .footer-logo {
+    width: 85px;
+    height: 85px;
+    top: -50px;
+    padding: 6px;
+  }
+  
+  .footer-curve {
+    height: 50px;
+  }
+  
+  .footer-content {
+    padding: 15px 12px 10px;
+  }
+  
+  .footer-col-header {
+    font-size: 14px;
+    margin-bottom: 8px;
+  }
+  
+  .footer-link {
+    font-size: 12px;
+  }
+  
+  .footer-link-item {
+    margin-bottom: 6px;
+  }
+  
+  .contact-paragraph {
+    font-size: 12px;
+    line-height: 1.5;
+    margin-bottom: 6px;
+  }
+  
+  .contact-paragraph strong {
+    font-size: 12px;
+  }
+  
+  .app-btn {
+    font-size: 12px;
+    padding: 6px 12px;
+    gap: 6px;
+  }
+  
+  .social-icons-container {
+    gap: 10px;
+  }
+  
+  .social-icon {
+    font-size: 16px;
+  }
+  
+  .copyright-text {
+    font-size: 11px;
+  }
+  
+  .social-row {
+    padding-top: 10px;
+    margin-top: 12px;
+  }
+}
+
+@media (max-width: 360px) {
+  .footer-logo {
+    width: 75px;
+    height: 75px;
+    top: -45px;
+    padding: 5px;
+  }
+  
+  .footer-curve {
+    height: 45px;
+  }
+  
+  .footer-content {
+    padding: 12px 8px 8px;
+  }
+  
+  .footer-col-header {
+    font-size: 13px;
+  }
+  
+  .footer-link {
+    font-size: 11px;
+  }
+  
+  .contact-paragraph {
+    font-size: 11px;
+  }
+  
+  .contact-paragraph strong {
+    font-size: 11px;
+  }
+  
+  .app-btn {
+    font-size: 11px;
+    padding: 5px 10px;
+  }
+  
+  .social-icon {
+    font-size: 15px;
+  }
+  
+  .copyright-text {
+    font-size: 10px;
+  }
+}

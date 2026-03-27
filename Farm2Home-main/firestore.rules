@@ -1,0 +1,188 @@
+rules_version = '2';
+service cloud.firestore {
+  match /databases/{database}/documents {
+    
+    // Helper Functions
+    function isSignedIn() { return request.auth != null; }
+    function isAdmin() {
+      // Admins are users whose uid has an entry in roles_admin/{uid}
+      // (No hardcoded bypasses).
+      return isSignedIn()
+        && exists(/databases/$(database)/documents/roles_admin/$(request.auth.uid));
+    }
+    function isOwner(userId) { return isSignedIn() && request.auth.uid == userId; }
+
+    // Grant absolute power to administrators across the entire document tree
+    match /{document=**} {
+      allow read, write: if isAdmin();
+    }
+
+    // 1. Users Collection
+    match /users/{userId} {
+      allow get: if isOwner(userId) || isAdmin();
+      allow list: if isAdmin();
+      allow create: if isSignedIn()
+        && request.auth.uid == userId
+        && request.resource.data.uid == request.auth.uid;
+      allow update: if (isOwner(userId) || isAdmin())
+        && request.resource.data.uid == resource.data.uid;
+      allow delete: if isAdmin();
+
+      // Cart Persistence
+      match /cart/{itemId} {
+        allow read, write: if isOwner(userId);
+      }
+
+      // Favorites Persistence
+      match /favorites/{productId} {
+        allow read, write: if isOwner(userId);
+      }
+    }
+
+    // 2. Crops Collection
+    match /crops/{cropId} {
+      allow read: if true;
+      allow create: if isSignedIn() && request.resource.data.farmerId == request.auth.uid;
+      allow update: if isAdmin() || (
+        isSignedIn()
+        && resource.data.farmerId == request.auth.uid
+        && request.resource.data.farmerId == resource.data.farmerId
+      );
+      allow delete: if isAdmin() || (isSignedIn() && resource.data.farmerId == request.auth.uid);
+    }
+
+    // 3. Orders Collection
+    match /orders/{orderId} {
+      allow create: if isSignedIn() && request.resource.data.customerId == request.auth.uid;
+      
+      allow read: if isSignedIn() && (
+        isAdmin() || 
+        (resource != null && (resource.data.customerId == request.auth.uid || resource.data.farmerId == request.auth.uid))
+      );
+      
+      allow update: if isAdmin() || (
+        isSignedIn()
+        && resource.data.farmerId == request.auth.uid
+        && request.resource.data.customerId == resource.data.customerId
+        && request.resource.data.farmerId == resource.data.farmerId
+      );
+      allow delete: if isAdmin();
+    }
+
+    // 4. Admin & Market Data
+    match /market_rates/{rateId} {
+      allow read: if true;
+      allow write: if isAdmin();
+    }
+
+    // 5. Market Demands (consumer crop requests)
+    match /market_demands/{demandId} {
+      // Any signed-in user can read (farmers browse open demands, consumers see their own)
+      allow read: if isSignedIn();
+      // Only consumers can create their own demand
+      allow create: if isSignedIn() && request.resource.data.consumerId == request.auth.uid;
+      // Consumer can update their own demand document.
+      // Farmer can only quote an open demand (open -> quoted) by setting
+      // committedFarmerId to themselves, OR update demands where they are
+      // already the committedFarmerId.
+      // Admin can do anything.
+      allow update: if isAdmin()
+        || (
+          isSignedIn()
+          && resource.data.consumerId == request.auth.uid
+          && request.resource.data.consumerId == resource.data.consumerId
+        )
+        || (
+          isSignedIn()
+          && (
+            // Farmer submits an offer: open -> quoted, consumerId unchanged,
+            // committedFarmerId becomes the current farmer.
+            (
+              resource.data.status == 'open'
+              && request.resource.data.status == 'quoted'
+              && request.resource.data.consumerId == resource.data.consumerId
+              && request.resource.data.committedFarmerId == request.auth.uid
+            )
+            // Farmer updates an existing quote/deal for the demand they committed.
+            || resource.data.committedFarmerId == request.auth.uid
+          )
+        );
+      allow delete: if isAdmin() || (isSignedIn() && resource.data.consumerId == request.auth.uid);
+    }
+
+    // 6. Complaints
+    match /complaints/{complaintId} {
+      // Any signed-in user can file a complaint (create)
+      allow create: if isSignedIn() && request.resource.data.reporterId == request.auth.uid;
+      // Reporter can read their own complaints; admin can read all
+      allow read: if isAdmin() || (isSignedIn() && resource.data.reporterId == request.auth.uid);
+      // Only admin can update (change status: open → reviewed → resolved)
+      allow update: if isAdmin();
+      allow delete: if isAdmin();
+    }
+
+    // 7. Reviews
+    match /reviews/{reviewId} {
+      // Only the consumer who made the deal can submit a review
+      allow create: if isSignedIn() && request.resource.data.consumerId == request.auth.uid;
+      // Public read so homepage can display original user reviews
+      allow read: if true;
+      // Admin-only updates/deletes (moderation)
+      allow update, delete: if isAdmin();
+    }
+
+    match /roles_admin/{uid} {
+      allow read: if (isSignedIn() && request.auth.uid == uid) || isAdmin();
+      allow write: if false;
+    }
+
+    // Profile Photos
+    match /profile_photos/{userId} {
+      allow read: if true;
+      allow write: if isOwner(userId);
+    }
+
+    // 8. Resource Tools (farming equipment listed for rent)
+    match /resource_tools/{toolId} {
+      allow read: if true;
+      allow create: if isSignedIn() && request.resource.data.ownerId == request.auth.uid;
+      allow update: if isAdmin() || (
+        isSignedIn()
+        && resource.data.ownerId == request.auth.uid
+        && request.resource.data.ownerId == resource.data.ownerId
+      );
+      allow delete: if isAdmin() || (isSignedIn() && resource.data.ownerId == request.auth.uid);
+    }
+
+    // 9. Resource Requests (tool rental requests posted by users)
+    match /resource_requests/{requestId} {
+      allow read: if isSignedIn();
+      allow create: if isSignedIn() && request.resource.data.requesterId == request.auth.uid;
+      allow update: if isAdmin()
+        || (isSignedIn()
+            && resource.data.requesterId == request.auth.uid
+            && request.resource.data.requesterId == resource.data.requesterId)
+        || (isSignedIn()
+            && resource.data.status == 'Pending'
+            && request.resource.data.requesterId == resource.data.requesterId);
+      allow delete: if isAdmin() || (isSignedIn() && resource.data.requesterId == request.auth.uid);
+    }
+
+    // 10. Rental Requests (used by ResourceSharePage / FarmerDashboard / App notifications)
+    match /rental_requests/{requestId} {
+      allow read: if isSignedIn();
+      allow create: if isSignedIn() && request.resource.data.requesterId == request.auth.uid;
+      allow update: if isAdmin()
+        || (isSignedIn() && resource.data.requesterId == request.auth.uid)
+        || (isSignedIn() && resource.data.toolOwnerId == request.auth.uid);
+      allow delete: if isAdmin() || (isSignedIn() && resource.data.requesterId == request.auth.uid);
+    }
+
+    // 11. Resource Reports (complaints for rental flows)
+    match /resource_reports/{reportId} {
+      allow create: if isSignedIn() && request.resource.data.reporterId == request.auth.uid;
+      allow read: if isAdmin() || (isSignedIn() && resource.data.reporterId == request.auth.uid);
+      allow update, delete: if isAdmin();
+    }
+  }
+}
