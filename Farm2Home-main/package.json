@@ -20,8 +20,8 @@
     "web-vitals": "^2.1.4"
   },
   "scripts": {
-    "start": "set PORT=2727 && set NODE_OPTIONS=--max_old_space_size=4096 && react-scripts start",
-    "dev": "set PORT=2727 && set NODE_OPTIONS=--max_old_space_size=4096 && react-scripts start",
+    "start": "set PORT=2223 && set NODE_OPTIONS=--max_old_space_size=4096 && react-scripts start",
+    "dev": "set PORT=2223 && set NODE_OPTIONS=--max_old_space_size=4096 && react-scripts start",
     "build": "set NODE_OPTIONS=--max_old_space_size=4096 && react-scripts build",
     "build:analyze": "npm run build && npx serve -s build",
     "test": "react-scripts test",
@@ -48,5 +48,12 @@
       "last 1 firefox version",
       "last 1 safari version"
     ]
+  },
+  "devDependencies": {
+    "ajv": "^8.18.0",
+    "ajv-keywords": "^5.1.0",
+    "autoprefixer": "^10.4.27",
+    "postcss": "^8.5.8",
+    "tailwindcss": "^3.4.19"
   }
 }

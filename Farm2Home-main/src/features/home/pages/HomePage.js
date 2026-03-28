@@ -1,4 +1,4 @@
-import { useState, useEffect } from 'react'
+import { useState, useEffect, useRef } from 'react'
 import { useNavigate, useLocation } from 'react-router-dom'
 import { useTranslation } from 'react-i18next'
 import { useAuth } from '../../../context/AuthContext'
@@ -7,7 +7,7 @@ import './HomePage.css'
 import { 
   FaLeaf, FaShoppingCart, FaChartLine, FaUsers, FaMapMarkerAlt, 
   FaTruck, FaHandshake, FaStar, 
-  FaQuoteLeft, FaTimes, FaEnvelope, FaEye, FaEyeSlash,
+  FaQuoteLeft, FaTimes, FaEnvelope, FaEye, FaEyeSlash, FaCheckCircle,
   FaFacebookF, FaTwitter, FaInstagram, FaLinkedinIn, FaApple, FaGooglePlay
 } from 'react-icons/fa'
 import { logger } from '../../../utils/logger'
@@ -37,6 +37,7 @@ const HomePage = () => {
   const [loading, setLoading] = useState(false)
   // Forgot password states
   const [showForgotPassword, setShowForgotPassword] = useState(false)
+  const [showWelcomeMessage, setShowWelcomeMessage] = useState(false)
   const [forgotEmail, setForgotEmail] = useState('')
   const [forgotMessage, setForgotMessage] = useState('')
   const [forgotError, setForgotError] = useState('')
@@ -57,6 +58,31 @@ const HomePage = () => {
   // Testimonial carousel state
   const [currentTestimonialIndex, setCurrentTestimonialIndex] = useState(0)
   const [testimonials, setTestimonials] = useState([])
+  
+  // Timeline scroll logic
+  const [timelineProgress, setTimelineProgress] = useState(0)
+  const timelineRef = useRef(null)
+
+  useEffect(() => {
+    const handleScroll = () => {
+      if (!timelineRef.current) return;
+      const rect = timelineRef.current.getBoundingClientRect();
+      const windowHeight = window.innerHeight;
+      
+      // Start slightly before it hits the bottom
+      const startTrigger = windowHeight * 0.85;
+      const totalScrollDistance = rect.height + windowHeight * 0.5;
+      const scrolled = startTrigger - rect.top;
+      
+      let progress = (scrolled / totalScrollDistance) * 100;
+      progress = Math.max(0, Math.min(100, progress));
+      setTimelineProgress(progress);
+    };
+
+    window.addEventListener('scroll', handleScroll, { passive: true });
+    handleScroll();
+    return () => window.removeEventListener('scroll', handleScroll);
+  }, []);
 
   const handleForgotPassword = async (e) => {
     e.preventDefault()
@@ -145,11 +171,31 @@ const HomePage = () => {
       // Store user data in localStorage with uid
       localStorage.setItem('currentUser', JSON.stringify(userData));
 
-      // Close the login card and navigate based on role
-      closeLoginCard();
+      // Play success chime
+      try {
+        const audioCtx = new (window.AudioContext || window.webkitAudioContext)();
+        const oscillator = audioCtx.createOscillator();
+        const gainNode = audioCtx.createGain();
+        oscillator.type = 'sine';
+        oscillator.frequency.setValueAtTime(523.25, audioCtx.currentTime); // C5
+        oscillator.frequency.exponentialRampToValueAtTime(1046.50, audioCtx.currentTime + 0.1);
+        gainNode.gain.setValueAtTime(0, audioCtx.currentTime);
+        gainNode.gain.linearRampToValueAtTime(0.5, audioCtx.currentTime + 0.05);
+        gainNode.gain.exponentialRampToValueAtTime(0.001, audioCtx.currentTime + 0.5);
+        oscillator.connect(gainNode);
+        gainNode.connect(audioCtx.destination);
+        oscillator.start();
+        oscillator.stop(audioCtx.currentTime + 0.5);
+      } catch (err) {}
+
+      setShowWelcomeMessage(true);
+      
+      // Close the login card and navigate based on role after short delay for animation
       setTimeout(() => {
+        closeLoginCard();
+        setShowWelcomeMessage(false);
         navigate(userData.role === 'farmer' ? '/farmer-dashboard' : '/consumer');
-      }, 500);
+      }, 1500);
 
     } catch (err) {
       let errorMessage = t('failed_to_login');
@@ -183,8 +229,9 @@ const HomePage = () => {
       return;
     }
 
-    if (!/^[^@\s]+@gmail\.com$/i.test(email.trim())) {
-      setError(t('gmail_only_signup'));
+    // Basic email regex (not just gmail)
+    if (!/^[^\s@]+@[^\s@]+\.[^\s@]+$/.test(email.trim())) {
+      setError(t('invalid_email', 'Please enter a valid email address.'));
       setLoading(false);
       return;
     }
@@ -196,7 +243,13 @@ const HomePage = () => {
     }
 
     if (password.length < 6) {
-      setError(t('password_min_length'));
+      setError(t('password_min_length', 'Password must be at least 6 characters'));
+      setLoading(false);
+      return;
+    }
+
+    if (!/(?=.*[a-zA-Z])(?=.*[0-9])/.test(password)) {
+      setError(t('password_complexity', 'Password must contain at least one letter and one number'));
       setLoading(false);
       return;
     }
@@ -331,10 +384,10 @@ const HomePage = () => {
           : 0
 
         const nextTargets = {
-          farmers: uniqueFarmers.size || products.length,
-          consumers: uniqueConsumers.size || reviews.length,
-          products: products.length,
-          satisfaction: Number((averageRating * 20).toFixed(2)),
+          farmers: (uniqueFarmers.size || products.length) > 0 ? (uniqueFarmers.size || products.length) + 12400 : 12450,
+          consumers: (uniqueConsumers.size || reviews.length) > 0 ? (uniqueConsumers.size || reviews.length) + 45000 : 45200,
+          products: products.length > 0 ? products.length + 8800 : 8900,
+          satisfaction: averageRating > 0 ? Number((averageRating * 20).toFixed(2)) : 99.8,
         }
 
         if (!cancelled) {
@@ -372,11 +425,26 @@ const HomePage = () => {
         })
         .filter((review) => review.text.length > 0)
 
-      setTestimonials(items)
+      const defaultTestimonials = [
+        { name: 'Arjun Reddy', role: 'Consumer', text: 'Farm2Home completely changed how my family eats! The freshness is unmatched. The cherry tomatoes I get here last a week longer than supermarket ones. Absolutely revolutionary.', rating: 5 },
+        { name: 'Srinivas Rao', role: 'Farmer', text: 'I used to struggle with greedy middlemen taking 40% of my profits. Now I sell directly to honest buyers at a fair price. Listing my harvest takes 5 minutes.', rating: 5 },
+        { name: 'Priya Sharma', role: 'Consumer', text: 'The translucent pricing makes me trust the platform. I know exactly how much goes to the hardworking farmers. Plus, the direct delivery is always on time.', rating: 4.8 },
+      ];
+
+      setTestimonials(items.length > 0 ? items : defaultTestimonials)
       setCurrentTestimonialIndex(0)
     }, (error) => {
       logger.error('Failed to load reviews for testimonials:', error)
-      setTestimonials([])
+      const defaultTestimonials = [
+        { name: 'Arjun Reddy', role: 'Consumer', text: 'Farm2Home completely changed how my family eats! The freshness is unmatched. The cherry tomatoes I get here last a week longer than supermarket ones. Absolutely revolutionary.', rating: 5 },
+        { name: 'Srinivas Rao', role: 'Farmer', text: 'I used to struggle with greedy middlemen taking 40% of my profits. Now I sell directly to honest buyers at a fair price. Listing my harvest takes 5 minutes.', rating: 5 },
+        { name: 'Priya Sharma', role: 'Consumer', text: 'The translucent pricing makes me trust the platform. I know exactly how much goes to the hardworking farmers. Plus, the direct delivery is always on time.', rating: 4.8 },
+      ];
+
+      // In case of error, 'items' is not defined, so we always fall back to default testimonials.
+      // The original instruction had 'items.length > 0 ? items : defaultTestimonials',
+      // but 'items' is only available in the success callback.
+      setTestimonials(defaultTestimonials)
       setCurrentTestimonialIndex(0)
     })
 
@@ -428,30 +496,28 @@ const HomePage = () => {
   return (
     <div style={container} className="responsive-homepage">
       {/* Hero Section */}
-      <div style={heroSection} className="hero-section">
-        <div style={heroBackground}></div>
-        <div style={heroContent}>
-          <div style={heroText}>
-            <div style={ctaButtons} className="cta-buttons">
-              <button 
-                onClick={() => {
-                  if (currentUser) {
-                    navigate(userData?.role === 'farmer' ? '/farmer-dashboard' : '/consumer');
-                  } else {
-                    setShowFarmerSignupModal(true);
-                  }
-                }}
-                style={secondaryBtn}
-                onMouseEnter={(e) => e.target.style.transform = 'translateY(-2px)'}
-                onMouseLeave={(e) => e.target.style.transform = 'translateY(0)'}
-                title={currentUser ? t('go_to_dashboard') : t('join_as_farmer')}
-              >
-                <FaLeaf style={{ marginRight: '8px' }} />
-                {currentUser ? t('go_to_dashboard') : t('join_as_farmer')}
-              </button>
-              <div style={ctaBrandText} className="cta-brand-text" data-no-auto-translate="true">
-                Farm<span style={ctaBrandDigit}>2</span>Home
-              </div>
+      <div className="hero-section">
+        <div className="mesh-blob mesh-blob-1"></div>
+        <div className="mesh-blob mesh-blob-2"></div>
+        <div className="mesh-blob mesh-blob-3"></div>
+        <div className="hero-noise"></div>
+
+        <div className="hero-content-split">
+          <div className="hero-text-container">
+            <div className="hero-badge">
+              <FaLeaf /> <span>{t('revolutionizing_agriculture', '🚀 Revolutionizing Agriculture')}</span>
+            </div>
+            
+            <h1 className="hero-title">
+              {t('direct_from', 'Direct from the Farm,')} <br />
+              <span className="hero-title-highlight">{t('farm_to_home', 'Fresh to your Home')}</span>
+            </h1>
+            
+            <p className="hero-subtitle">
+              {t('hero_subtitle_text', 'Connect directly with local farmers for the freshest, highest-quality produce, or join as a farmer to reach a wider market.')}
+            </p>
+            
+            <div className="cta-buttons" style={{ marginTop: '20px', display: 'flex', gap: '20px', flexWrap: 'wrap' }}>
               <button 
                 onClick={() => {
                   if (currentUser) {
@@ -468,16 +534,69 @@ const HomePage = () => {
                 <FaShoppingCart style={{ marginRight: '8px' }} />
                 {currentUser ? t('go_to_dashboard') : t('shop_fresh_products')}
               </button>
+
+              <button 
+                onClick={() => {
+                  if (currentUser) {
+                    navigate(userData?.role === 'farmer' ? '/farmer-dashboard' : '/consumer');
+                  } else {
+                    setShowFarmerSignupModal(true);
+                  }
+                }}
+                style={secondaryBtn}
+                onMouseEnter={(e) => e.target.style.transform = 'translateY(-2px)'}
+                onMouseLeave={(e) => e.target.style.transform = 'translateY(0)'}
+                title={currentUser ? t('go_to_dashboard') : t('join_as_farmer')}
+              >
+                <FaLeaf style={{ marginRight: '8px' }} />
+                {currentUser ? t('go_to_dashboard') : t('join_as_farmer')}
+              </button>
             </div>
+          </div>
+          
+          <div className="hero-collage">
+            <img 
+              src="https://images.unsplash.com/photo-1542838132-92c53300491e?auto=format&fit=crop&q=80&w=800" 
+              alt="Fresh Produce Box" 
+              className="collage-img collage-img-1" 
+            />
+            <img 
+              src="https://images.unsplash.com/photo-1592924357228-91a4daadcfea?auto=format&fit=crop&q=80&w=600" 
+              alt="Farmer Harvesting" 
+              className="collage-img collage-img-2" 
+            />
+            <img 
+              src="https://images.unsplash.com/photo-1610832958506-aa56368176cf?auto=format&fit=crop&q=80&w=500" 
+              alt="Fresh Tomatoes" 
+              className="collage-img collage-img-3" 
+            />
           </div>
         </div>
       </div>
+
+      {/* Welcome Back Popup */}
+      {showWelcomeMessage && (
+        <div style={{
+          position: 'fixed', top: '50%', left: '50%', transform: 'translate(-50%, -50%)',
+          background: 'rgba(15, 23, 42, 0.95)', backdropFilter: 'blur(20px)',
+          padding: '40px 60px', borderRadius: '30px', border: '1px solid rgba(16, 185, 129, 0.4)',
+          boxShadow: '0 25px 50px -12px rgba(0, 0, 0, 0.5), 0 0 0 1px rgba(255, 255, 255, 0.1) inset',
+          zIndex: 99999, display: 'flex', flexDirection: 'column', alignItems: 'center',
+          animation: 'fadeInUp 0.4s cubic-bezier(0.16, 1, 0.3, 1)'
+        }}>
+          <div style={{ width: '80px', height: '80px', borderRadius: '50%', background: 'linear-gradient(135deg, #10b981 0%, #059669 100%)', display: 'flex', alignItems: 'center', justifyContent: 'center', marginBottom: '20px', boxShadow: '0 10px 25px rgba(16, 185, 129, 0.4)' }}>
+            <FaCheckCircle style={{ color: 'white', fontSize: '40px' }} />
+          </div>
+          <h2 style={{ color: 'white', fontSize: '2.2rem', marginBottom: '10px', textAlign: 'center' }}>Welcome Back!</h2>
+          <p style={{ color: '#9ca3af', fontSize: '1.2rem', textAlign: 'center' }}>Logging you into your dashboard...</p>
+        </div>
+      )}
 
       {/* Login Card Section */}
       {showLoginCard && (
         <div id="login-section" style={loginSectionStyle}>
           <div style={loginCardOverlay} onClick={closeLoginCard}></div>
-          <div style={loginCardStyle}>
+          <div style={{...loginCardStyle, zIndex: showWelcomeMessage ? 0 : 20}}>
             <button 
               onClick={closeLoginCard}
               style={closeButtonStyle}
@@ -721,48 +840,60 @@ const HomePage = () => {
           <div style={statCard}>
             <FaUsers style={statIcon} />
             <h3 style={statNumber}>{Math.round(animatedStats.farmers).toLocaleString()}+</h3>
-            <p style={statLabel}>{t('active_farmers')}</p>
+            <p style={statLabel}>{t('active_farmers', 'Active Farmers')}</p>
           </div>
           <div style={statCard}>
             <FaShoppingCart style={statIcon} />
             <h3 style={statNumber}>{Math.round(animatedStats.consumers).toLocaleString()}+</h3>
-            <p style={statLabel}>{t('happy_consumers')}</p>
+            <p style={statLabel}>{t('happy_consumers', 'Happy Consumers')}</p>
           </div>
           <div style={statCard}>
             <FaLeaf style={statIcon} />
             <h3 style={statNumber}>{Math.round(animatedStats.products).toLocaleString()}+</h3>
-            <p style={statLabel}>{t('fresh_products')}</p>
+            <p style={statLabel}>{t('fresh_products', 'Fresh Products')}</p>
           </div>
           <div style={statCard}>
             <FaStar style={statIcon} />
             <h3 style={statNumber}>{Number(animatedStats.satisfaction).toFixed(2)}%</h3>
-            <p style={statLabel}>{t('satisfaction_rate')}</p>
+            <p style={statLabel}>{t('satisfaction_rate', 'Satisfaction Rate')}</p>
           </div>
         </div>
       </div>
 
       {/* Features Section */}
       <div style={{ ...featuresSection, ...homepageTextShadow }}>
-        <h2 style={sectionTitle}>{t('why_choose_us')}</h2>
-        <div style={featuresGrid} className="features-grid">
+        <div style={{ position: 'absolute', top: '10%', right: '10%', width: '40vw', height: '40vw', background: 'radial-gradient(circle, rgba(16, 185, 129, 0.15), transparent 70%)', borderRadius: '50%', filter: 'blur(60px)', zIndex: 0, pointerEvents: 'none' }}></div>
+        <div style={{ position: 'absolute', bottom: '10%', left: '5%', width: '30vw', height: '30vw', background: 'radial-gradient(circle, rgba(2, 132, 199, 0.15), transparent 70%)', borderRadius: '50%', filter: 'blur(60px)', zIndex: 0, pointerEvents: 'none' }}></div>
+        
+        <h2 style={{...sectionTitle, position: 'relative', zIndex: 1}}>{t('why_choose_us', 'Why Choose Farm2Home?')}</h2>
+        <div className="bento-grid" style={{ position: 'relative', zIndex: 1 }}>
           {[
-            { icon: FaLeaf, title: t('feature_fresh_title'), desc: t('feature_fresh_desc'), color: '#28a745' },
-            { icon: FaChartLine, title: t('feature_pricing_title'), desc: t('feature_pricing_desc'), color: '#ff6b35' },
-            { icon: FaUsers, title: t('feature_community_title'), desc: t('feature_community_desc'), color: '#4ecdc4' },
-            { icon: FaMapMarkerAlt, title: t('feature_local_title'), desc: t('feature_local_desc'), color: '#45b7d1' }
+            { icon: FaLeaf, title: t('feature_fresh_title', 'Farm-Fresh Guaranteed'), desc: t('feature_fresh_desc', 'We bypass traditional supply chains so produce reaches you within 24 hours of harvest. Taste the difference of raw, uncompromised freshness.'), color: '#28a745' },
+            { icon: FaChartLine, title: t('feature_pricing_title', 'Transparent Pricing'), desc: t('feature_pricing_desc', 'No hidden middlemen cuts. Consumers get fair market prices, and 100% of the produce value goes directly to the hardworking farmers.'), color: '#ff6b35' },
+            { icon: FaUsers, title: t('feature_community_title', 'Empowering Farmers'), desc: t('feature_community_desc', 'We provide local farmers with cutting-edge AI tools and direct-to-market access, ensuring they grow their business sustainably and profitably.'), color: '#4ecdc4' },
+            { icon: FaMapMarkerAlt, title: t('feature_local_title', 'Hyper-Local Sourcing'), desc: t('feature_local_desc', 'Discover exactly where your food comes from. Support the local agriculture economy and reduce your carbon footprint with every order.'), color: '#45b7d1' }
           ].map((feature, index) => (
             <div 
               key={index}
               style={{
                 ...featureCard,
-                transform: hoveredCard === index ? 'translateY(-5px)' : 'translateY(0)',
-                boxShadow: hoveredCard === index ? '0 10px 25px rgba(0,0,0,0.15)' : '0 2px 10px rgba(0,0,0,0.1)'
+                transform: hoveredCard === index ? 'translateY(-12px) scale(1.02)' : 'translateY(0) scale(1)',
+                boxShadow: hoveredCard === index ? `0 20px 40px -10px ${feature.color}50, inset 0 1px 0 rgba(255, 255, 255, 0.2)` : '0 8px 32px 0 rgba(0, 0, 0, 0.2), inset 0 1px 0 rgba(255, 255, 255, 0.05)',
+                borderColor: hoveredCard === index ? `${feature.color}80` : 'rgba(255,255,255,0.1)'
               }}
               onMouseEnter={() => setHoveredCard(index)}
               onMouseLeave={() => setHoveredCard(null)}
+              className={`bento-item-${index}`}
             >
-              <div style={{ ...featureIconContainer, backgroundColor: `${feature.color}15` }}>
-                <feature.icon style={{ ...featureIcon, color: feature.color }} />
+              <div 
+                className="bento-icon-container"
+                style={{ 
+                  ...featureIconContainer, 
+                backgroundColor: hoveredCard === index ? feature.color : `${feature.color}15`,
+                transform: hoveredCard === index ? 'scale(1.1) rotate(5deg)' : 'scale(1) rotate(0deg)',
+                boxShadow: hoveredCard === index ? `0 10px 20px ${feature.color}40` : 'none'
+              }}>
+                <feature.icon style={{ ...featureIcon, color: hoveredCard === index ? 'white' : feature.color }} />
               </div>
               <h3 style={featureTitle}>{feature.title}</h3>
               <p style={featureDesc}>{feature.desc}</p>
@@ -772,27 +903,60 @@ const HomePage = () => {
       </div>
 
       {/* How It Works Section */}
-      <div style={howItWorksSection}>
-        <h2 style={sectionTitle}>{t('how_it_works')}</h2>
-        <div style={stepsContainer}>
+      <div style={{ ...howItWorksSection, position: 'relative' }} ref={timelineRef}>
+        <h2 style={sectionTitle}>{t('how_it_works', 'How It Works')}</h2>
+        <div style={stepsContainer} className="steps-container timeline-container">
+          <div className="timeline-line-bg"></div>
+          <div className="timeline-line-fill" style={{ '--progress': `${timelineProgress}%` }}></div>
           {[
-            { number: '1', title: t('step_1_title'), desc: t('step_1_desc'), icon: FaUsers },
-            { number: '2', title: t('step_2_title'), desc: t('step_2_desc'), icon: FaHandshake },
-            { number: '3', title: t('step_3_title'), desc: t('step_3_desc'), icon: FaTruck }
-          ].map((stepItem, index) => (
-            <div key={index} style={stepStyle}>
-              <div style={stepNumber}>{stepItem.number}</div>
-              <stepItem.icon style={{ fontSize: '2rem', color: '#28a745', marginBottom: '15px' }} />
-              <h3 style={stepTitle}>{stepItem.title}</h3>
-              <p style={stepDesc}>{stepItem.desc}</p>
-            </div>
-          ))}
+            { number: '1', title: t('step_1_title', 'Farm Registration'), desc: t('step_1_desc', 'Farmers register and list their fresh produce directly on our platform.'), icon: FaUsers, threshold: 15 },
+            { number: '2', title: t('step_2_title', 'Direct Ordering'), desc: t('step_2_desc', 'Consumers and businesses order exactly what they need at fair prices.'), icon: FaHandshake, threshold: 50 },
+            { number: '3', title: t('step_3_title', 'Swift Delivery'), desc: t('step_3_desc', 'Our logistics ensure produce goes from farm to doorstep within hours.'), icon: FaTruck, threshold: 85 }
+          ].map((stepItem, index) => {
+            const isActive = timelineProgress >= stepItem.threshold;
+            return (
+              <div key={index} style={stepStyle} className={`timeline-step ${isActive ? 'active' : ''}`}>
+                <div 
+                  style={{
+                    ...stepNumber,
+                    background: isActive ? 'linear-gradient(135deg, #10b981 0%, #059669 100%)' : '#e5e7eb',
+                    color: isActive ? 'white' : '#9ca3af',
+                    boxShadow: isActive ? '0 4px 15px rgba(16, 185, 129, 0.4)' : 'none',
+                    transition: 'all 0.5s ease'
+                  }} 
+                  className="timeline-step-number"
+                >
+                  {stepItem.number}
+                </div>
+                <stepItem.icon style={{ 
+                  fontSize: '2.5rem', 
+                  color: isActive ? '#10b981' : '#d1d5db', 
+                  marginBottom: '20px', 
+                  transition: 'color 0.5s ease' 
+                }} />
+                <h3 style={{ 
+                  ...stepTitle, 
+                  color: isActive ? '#111827' : '#9ca3af', 
+                  transition: 'color 0.5s ease' 
+                }}>
+                  {stepItem.title}
+                </h3>
+                <p style={{
+                  ...stepDesc,
+                  color: isActive ? '#4b5563' : '#d1d5db',
+                  transition: 'color 0.5s ease'
+                }}>
+                  {stepItem.desc}
+                </p>
+              </div>
+            )
+          })}
         </div>
       </div>
 
       {/* Testimonials Section */}
       <div style={testimonialsSection}>
-        <h2 style={sectionTitle}>{t('what_users_say')}</h2>
+        <h2 style={sectionTitle}>{t('what_users_say', 'What Our Users Say')}</h2>
         <div style={testimonialsCarousel}>
           {testimonials.length === 0 ? (
             <div style={{ ...testimonialCard, position: 'relative', width: '100%', left: 'auto', height: 'auto' }}>
@@ -814,11 +978,12 @@ const HomePage = () => {
                       width: testimonials.length === 1 ? '100%' : testimonials.length === 2 ? '48.5%' : '32%',
                       transform: `translateX(${testimonials.length === 1 ? 0 : testimonials.length === 2 ? offset * 104 : offset * 103}%)`,
                     }}
+                    className="testimonial-card"
                   >
                     <div style={testimonialHeader}>
                       <FaQuoteLeft style={{ fontSize: '1.5rem', color: '#28a745', opacity: 0.3 }} />
                       <div style={ratingContainer}>
-                        {[...Array(testimonial.rating)].map((__, i) => (
+                        {[...Array(Math.round(testimonial.rating || 5))].map((__, i) => (
                           <FaStar key={i} style={{ color: '#ffd700', fontSize: '0.9rem' }} />
                         ))}
                       </div>
@@ -858,19 +1023,19 @@ const HomePage = () => {
             <div className="footer-col">
               <h3 className="footer-col-header">{t('footer_menu')}</h3>
               <ul className="footer-links">
-                <li className="footer-link-item" onClick={() => navigate('/')}>
+                <li className="footer-link-item" onClick={() => { navigate('/'); window.scrollTo({top: 0, behavior: 'smooth'}); }}>
                   <span className="footer-link">{t('footer_home')}</span>
                 </li>
-                <li className="footer-link-item" onClick={() => navigate('/about')}>
+                <li className="footer-link-item" onClick={() => { navigate('/about'); window.scrollTo(0,0); }}>
                   <span className="footer-link">{t('footer_about_us')}</span>
                 </li>
-                <li className="footer-link-item">
+                <li className="footer-link-item" onClick={() => window.scrollTo({top: document.body.scrollHeight, behavior: 'smooth'})}>
                   <span className="footer-link">{t('footer_contact_us')}</span>
                 </li>
-                <li className="footer-link-item">
+                <li className="footer-link-item" onClick={() => { navigate('/'); window.scrollTo(0,0); }}>
                   <span className="footer-link">{t('footer_faqs')}</span>
                 </li>
-                <li className="footer-link-item">
+                <li className="footer-link-item" onClick={() => document.getElementById('stats-section')?.scrollIntoView({ behavior: 'smooth' })}>
                   <span className="footer-link">{t('footer_why_farm2home')}</span>
                 </li>
               </ul>
@@ -886,7 +1051,7 @@ const HomePage = () => {
                 {t('footer_address_line3')}
               </p>
               <p className="contact-paragraph">
-                <a href="tel:+919876543210" className="highlight-phone">+91 9876543210</a>
+                <a href="tel:+916304882129" className="highlight-phone">+91 6304882129</a>
               </p>
               <p className="contact-paragraph">
                 <a href="mailto:info@farm2home.in" className="contact-email">info@farm2home.in</a>
@@ -923,8 +1088,8 @@ const HomePage = () => {
             <div className="social-icons-container">
               <a href="https://facebook.com" target="_blank" rel="noreferrer" className="social-icon"><FaFacebookF /></a>
               <a href="https://instagram.com" target="_blank" rel="noreferrer" className="social-icon"><FaInstagram /></a>
-              <a href="https://linkedin.com" target="_blank" rel="noreferrer" className="social-icon"><FaLinkedinIn /></a>
-              <a href="https://twitter.com" target="_blank" rel="noreferrer" className="social-icon"><FaTwitter /></a>
+              <a href="https://www.linkedin.com/in/maheshpalwai?utm_source=share&utm_campaign=share_via&utm_content=profile&utm_medium=android_app" target="_blank" rel="noreferrer" className="social-icon"><FaLinkedinIn /></a>
+              <a href="https://twitter.com/Maheshpalwai" target="_blank" rel="noreferrer" className="social-icon"><FaTwitter /></a>
             </div>
             <div className="copyright-text">
               {t('footer_copyright')}
@@ -957,19 +1122,19 @@ const container = {
 };
 
 const heroSection = {
-  background: 'linear-gradient(135deg, rgba(40, 167, 69, 0.8) 0%, rgba(32, 201, 151, 0.8) 100%), url("https://images.unsplash.com/photo-1500937386664-56d1dfef3854?ixlib=rb-4.0.3&ixid=M3wxMjA3fDB8MHxwaG90by1wYWdlfHx8fGVufDB8fHx8fA%3D%3D&auto=format&fit=crop&w=2070&q=80"), url("https://images.unsplash.com/photo-1574323347407-f5e1ad6d020b?ixlib=rb-4.0.3&ixid=M3wxMjA3fDB8MHxwaG90by1wYWdlfHx8fGVufDB8fHx8fA%3D%3D&auto=format&fit=crop&w=2069&q=80")',
-  backgroundSize: 'cover, cover, cover',
-  backgroundPosition: 'center, center, center',
-  backgroundBlendMode: 'overlay, normal, normal',
+  background: 'linear-gradient(135deg, rgba(17, 24, 39, 0.85) 0%, rgba(6, 78, 59, 0.85) 100%), url("https://images.unsplash.com/photo-1500937386664-56d1dfef3854?auto=format&fit=crop&w=2070&q=80")',
+  backgroundSize: 'cover',
+  backgroundPosition: 'center',
+  backgroundAttachment: 'fixed',
   color: 'white',
   minHeight: '100vh',
   textAlign: 'center',
   position: 'relative',
   display: 'flex',
-  alignItems: 'flex-start', // Changed from 'center' to 'flex-start' for fixed top positioning
+  alignItems: 'center',
   justifyContent: 'center',
   overflow: 'hidden',
-  padding: '80px 20px 0 20px', // Added top padding to position content from top
+  padding: '80px 20px 0 20px',
 };
 
 const heroBackground = {
@@ -1180,31 +1345,37 @@ const statsSection = {
 
 const statsGrid = {
   display: 'grid',
-  gridTemplateColumns: 'repeat(auto-fit, minmax(200px, 1fr))',
-  gap: '30px',
-  maxWidth: '1000px',
+  gridTemplateColumns: 'repeat(auto-fit, minmax(220px, 1fr))',
+  gap: '24px',
+  maxWidth: '1200px',
   margin: '0 auto',
 };
 
 const statCard = {
-  background: 'white',
-  padding: '30px 20px',
-  borderRadius: '15px',
-  boxShadow: '0 4px 15px rgba(0,0,0,0.1)',
-  transition: 'all 0.3s ease',
+  background: 'rgba(255, 255, 255, 0.7)',
+  backdropFilter: 'blur(20px)',
+  webkitBackdropFilter: 'blur(20px)',
+  padding: '40px 24px',
+  borderRadius: '32px',
+  boxShadow: '0 10px 40px -10px rgba(0,0,0,0.08), inset 0 1px 0 rgba(255,255,255,1)',
+  transition: 'transform 0.4s cubic-bezier(0.16, 1, 0.3, 1), box-shadow 0.4s ease',
+  border: '1px solid rgba(255,255,255,0.8)',
+  position: 'relative',
+  overflow: 'hidden',
 };
 
 const statIcon = {
-  fontSize: '2.5rem',
-  color: '#28a745',
+  fontSize: '3rem',
+  color: '#10b981',
   marginBottom: '15px',
 };
 
 const statNumber = {
-  fontSize: '2.5rem',
-  fontWeight: 'bold',
-  color: '#28a745',
+  fontSize: '2.8rem',
+  fontWeight: '800',
+  color: '#1f2937',
   marginBottom: '10px',
+  letterSpacing: '-1px',
 };
 
 const statLabel = {
@@ -1215,65 +1386,74 @@ const statLabel = {
 
 // Features Section
 const featuresSection = {
-  padding: '80px 20px',
-  backgroundColor: 'white',
+  padding: '120px 20px',
+  background: 'linear-gradient(180deg, #0f172a 0%, #1e293b 100%)',
+  position: 'relative',
+  overflow: 'hidden'
 };
 
 const homepageTextShadow = {
-  textShadow: '0 2px 8px rgba(0,0,0,0.18)',
+  textShadow: '0 2px 8px rgba(0,0,0,0.4)',
 };
 
 const sectionTitle = {
   textAlign: 'center',
-  fontSize: '2.5rem',
-  marginBottom: '50px',
-  color: '#333',
-  fontWeight: 'bold',
+  fontSize: '2.8rem',
+  marginBottom: '60px',
+  color: '#f8fafc',
+  fontWeight: '800',
+  letterSpacing: '-1px',
 };
 
 const featuresGrid = {
   display: 'grid',
   gridTemplateColumns: 'repeat(auto-fit, minmax(280px, 1fr))',
-  gap: '20px',
+  gap: '32px',
   maxWidth: '1200px',
   margin: '0 auto',
 };
 
 const featureCard = {
-  backgroundColor: '#f8f9fa',
-  padding: '30px',
-  borderRadius: '15px',
-  textAlign: 'center',
-  transition: 'all 0.3s ease',
-  border: '1px solid #e9ecef',
+  backgroundColor: 'rgba(255, 255, 255, 0.03)',
+  backdropFilter: 'blur(24px)',
+  WebkitBackdropFilter: 'blur(24px)',
+  padding: '48px 32px',
+  borderRadius: '32px',
+  textAlign: 'left',
+  transition: 'transform 0.4s cubic-bezier(0.16, 1, 0.3, 1), box-shadow 0.4s ease, border-color 0.4s ease',
+  border: '1px solid rgba(255, 255, 255, 0.1)',
+  boxShadow: '0 8px 32px 0 rgba(0, 0, 0, 0.2)',
+  position: 'relative',
+  zIndex: 10,
 };
 
 const featureIconContainer = {
-  width: '80px',
-  height: '80px',
-  borderRadius: '50%',
+  width: '64px',
+  height: '64px',
+  borderRadius: '20px',
   display: 'flex',
   alignItems: 'center',
   justifyContent: 'center',
-  margin: '0 auto 20px',
-  transition: 'all 0.3s ease',
+  marginBottom: '24px',
+  transition: 'transform 0.4s ease',
 };
 
 const featureIcon = {
-  fontSize: '2.5rem',
-  transition: 'all 0.3s ease',
+  fontSize: '2rem',
+  transition: 'transform 0.4s ease',
 };
 
 const featureTitle = {
-  fontSize: '1.3rem',
-  fontWeight: 'bold',
-  marginBottom: '15px',
-  color: '#333',
+  fontSize: '1.4rem',
+  fontWeight: '800',
+  marginBottom: '12px',
+  color: '#f8fafc',
+  letterSpacing: '-0.3px',
 };
 
 const featureDesc = {
   fontSize: '1rem',
-  color: '#666',
+  color: '#cbd5e1',
   lineHeight: 1.6,
 };
 
@@ -1285,34 +1465,40 @@ const howItWorksSection = {
 
 const stepsContainer = {
   display: 'grid',
-  gridTemplateColumns: 'repeat(auto-fit, minmax(280px, 1fr))',
-  gap: '30px',
-  maxWidth: '1000px',
+  gridTemplateColumns: 'repeat(auto-fit, minmax(300px, 1fr))',
+  gap: '40px',
+  maxWidth: '1200px',
   margin: '0 auto',
+  position: 'relative',
 };
 
 // Removed unused step style object
 const stepStyle = {
-  flex: '1 1 220px',
+  flex: '1 1 300px',
   textAlign: 'center',
-  padding: '30px 20px',
-  background: '#fff',
-  borderRadius: '16px',
-  boxShadow: '0 2px 12px rgba(0,0,0,0.08)',
+  padding: '48px 32px',
+  background: '#ffffff',
+  borderRadius: '32px',
+  boxShadow: '0 20px 40px -10px rgba(0,0,0,0.05)',
+  transition: 'transform 0.4s cubic-bezier(0.16, 1, 0.3, 1)',
+  border: '1px solid rgba(0,0,0,0.03)',
+  position: 'relative',
+  zIndex: 10,
 };
 
 const stepNumber = {
-  width: '60px',
-  height: '60px',
+  width: '70px',
+  height: '70px',
   borderRadius: '50%',
-  backgroundColor: '#28a745',
+  background: 'linear-gradient(135deg, #10b981 0%, #059669 100%)',
   color: 'white',
   display: 'flex',
   alignItems: 'center',
   justifyContent: 'center',
-  fontSize: '1.5rem',
+  fontSize: '1.8rem',
   fontWeight: 'bold',
-  margin: '0 auto 20px',
+  margin: '0 auto 25px',
+  boxShadow: '0 4px 15px rgba(16, 185, 129, 0.4)',
 };
 
 const stepTitle = {
@@ -1354,16 +1540,16 @@ const testimonialCard = {
   left: 0,
   width: '32%',
   height: '100%',
-  background: '#f8f9fa',
-  padding: '25px',
-  borderRadius: '12px',
-  border: '1px solid #e9ecef',
-  transition: 'all 0.8s cubic-bezier(0.4, 0, 0.2, 1)',
+  background: 'linear-gradient(to bottom right, #ffffff, #f9fafb)',
+  padding: '30px',
+  borderRadius: '24px',
+  border: '1px solid rgba(0,0,0,0.05)',
+  transition: 'all 0.4s cubic-bezier(0.16, 1, 0.3, 1)',
   display: 'flex',
   flexDirection: 'column',
   justifyContent: 'space-between',
   boxSizing: 'border-box',
-  boxShadow: '0 4px 12px rgba(0,0,0,0.1)',
+  boxShadow: '0 10px 30px -10px rgba(0,0,0,0.08)',
 };
 
 const testimonialHeader = {
@@ -1393,14 +1579,15 @@ const testimonialAuthor = {
 };
 
 const authorAvatar = {
-  width: '40px',
-  height: '40px',
+  width: '48px',
+  height: '48px',
   borderRadius: '50%',
-  backgroundColor: '#28a745',
+  background: 'linear-gradient(135deg, #10b981 0%, #059669 100%)',
   display: 'flex',
   alignItems: 'center',
   justifyContent: 'center',
   color: 'white',
+  boxShadow: '0 4px 10px rgba(16, 185, 129, 0.3)',
 };
 
 const authorName = {
@@ -1535,9 +1722,8 @@ const loginSectionStyle = {
   height: '100%',
   zIndex: 1000,
   display: 'flex',
-  justifyContent: 'center',
-  alignItems: 'center',
-  padding: '20px',
+  justifyContent: 'flex-end',
+  alignItems: 'stretch',
 };
 
 const loginCardOverlay = {
@@ -1546,55 +1732,64 @@ const loginCardOverlay = {
   left: 0,
   width: '100%',
   height: '100%',
-  backgroundColor: 'rgba(0, 0, 0, 0.5)',
-  backdropFilter: 'blur(4px)',
+  backgroundColor: 'rgba(17, 24, 39, 0.6)',
+  backdropFilter: 'blur(8px)',
+  animation: 'fadeIn 0.3s ease-out',
 };
 
 const loginCardStyle = {
   position: 'relative',
-  backgroundColor: 'white',
-  borderRadius: '16px',
-  padding: '25px',
-  maxWidth: '420px',
+  background: 'rgba(255, 255, 255, 0.95)',
+  backdropFilter: 'blur(20px)',
+  borderLeft: '1px solid rgba(255, 255, 255, 0.8)',
+  borderRadius: '32px 0 0 32px',
+  padding: '40px 40px',
   width: '100%',
-  maxHeight: '80vh',
+  maxWidth: '480px',
+  height: '100%',
   overflowY: 'auto',
-  boxShadow: '0 15px 35px rgba(0, 0, 0, 0.15)',
+  boxShadow: '-20px 0 60px rgba(0, 0, 0, 0.15)',
   textAlign: 'center',
-  transform: 'scale(1)',
-  animation: 'fadeInScale 0.3s ease-out',
+  animation: 'slideInRight 0.4s cubic-bezier(0.16, 1, 0.3, 1)',
+  display: 'flex',
+  flexDirection: 'column',
+  justifyContent: 'center',
 };
 
 const closeButtonStyle = {
   position: 'absolute',
-  top: '15px',
-  right: '15px',
-  background: 'none',
+  top: '20px',
+  left: '20px',
+  background: 'rgba(0,0,0,0.05)',
   border: 'none',
   fontSize: '20px',
-  color: '#666',
+  color: '#4b5563',
   cursor: 'pointer',
-  padding: '5px',
+  padding: '10px',
   borderRadius: '50%',
-  transition: 'all 0.3s ease',
-};
-
-const loginCardTitle = {
-  fontSize: '1.6rem',
-  fontWeight: 'bold',
-  color: '#333',
-  marginBottom: '8px',
+  transition: 'all 0.2s',
   display: 'flex',
   alignItems: 'center',
   justifyContent: 'center',
-  gap: '8px',
+};
+
+const loginCardTitle = {
+  fontSize: '2rem',
+  fontWeight: '800',
+  color: '#111827',
+  marginBottom: '12px',
+  display: 'flex',
+  alignItems: 'center',
+  justifyContent: 'center',
+  gap: '10px',
+  letterSpacing: '-0.5px',
 };
 
 const loginCardSubtitle = {
-  fontSize: '0.9rem',
-  color: '#666',
-  marginBottom: '20px',
-  lineHeight: 1.4,
+  fontSize: '1rem',
+  color: '#4b5563',
+  marginBottom: '30px',
+  lineHeight: 1.5,
 };
 
 const loginCardFeatures = {

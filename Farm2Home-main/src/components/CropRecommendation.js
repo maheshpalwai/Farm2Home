@@ -2,6 +2,7 @@ import React, { useState } from 'react';
 import { useTranslation } from 'react-i18next';
 import { useNavigate } from 'react-router-dom';
 import { FaLeaf, FaThermometerHalf, FaCalendarAlt, FaChartLine, FaSeedling, FaWater, FaMapMarkerAlt, FaMoneyBillWave, FaStar, FaDownload, FaBookmark, FaChevronLeft, FaChevronRight } from 'react-icons/fa';
+import './CropRecommendation.css';
 
 const CropRecommendation = () => {
   const { t } = useTranslation();
@@ -376,17 +377,23 @@ Generated on: ${new Date().toLocaleDateString()}
   };
 
   return (
-    <div style={container}>
-      <div style={{maxWidth: '1200px', margin: '0 auto'}}>
+    <div className="cr-premium-container">
+      <div className="cr-mesh-blob cr-blob-1" />
+      <div className="cr-mesh-blob cr-blob-2" />
+      <div className="cr-mesh-blob cr-blob-3" />
+      <div className="cr-noise-overlay" />
+      <div className="cr-content-wrapper">
       {/* Navigation Header */}
       <div style={navHeader}>
         <button onClick={() => navigate(-1)} style={navButton}>
           <FaChevronLeft style={{ marginRight: '8px' }} />
           {t('back') || 'Back'}
         </button>
-        <div style={header}>
-          <FaSeedling style={{ fontSize: 32, color: '#fff', marginRight: 12, filter: 'drop-shadow(1px 1px 2px rgba(0,0,0,0.5))' }} />
-          <h1 style={title}>{t('crop_recommendations') || 'Crop Recommendations'}</h1>
+        <div className="cr-header">
+          <h1 className="cr-title">
+            <FaSeedling className="cr-title-icon" />
+            {t('crop_recommendations') || 'AI Crop Recommendations'}
+          </h1>
         </div>
         <button onClick={() => navigate(1)} style={navButton}>
           {t('forward') || 'Forward'}
@@ -431,18 +438,18 @@ Generated on: ${new Date().toLocaleDateString()}
           )}
         </div>
       ) : showForm ? (
-        <form onSubmit={handleSubmit} style={formStyle}>
-          <div style={formGrid}>
+        <form onSubmit={handleSubmit} className="cr-glass-panel">
+          <div className="cr-form-grid">
             {/* Soil Type */}
-            <div style={inputGroup}>
-              <label style={label}>
-                <FaLeaf style={{ marginRight: 8 }} />
+            <div className="cr-input-group">
+              <label className="cr-label">
+                <FaLeaf className="cr-label-icon" />
                 {t('soil_type') || 'Soil Type'}
               </label>
               <select 
                 value={formData.soilType} 
                 onChange={(e) => handleInputChange('soilType', e.target.value)}
-                style={select}
+                className="cr-select"
                 required
               >
                 <option value="">{t('select_soil_type') || 'Select Soil Type'}</option>
@@ -452,28 +459,18 @@ Generated on: ${new Date().toLocaleDateString()}
                   </option>
                 ))}
               </select>
-              {formData.soilType && (
-                <div style={characteristicsBox}>
-                  <h4>Characteristics:</h4>
-                  <ul>
-                    {soilTypes.find(s => s.value === formData.soilType)?.characteristics.map((char, i) => (
-                      <li key={i}>{char}</li>
-                    ))}
-                  </ul>
-                </div>
-              )}
             </div>
 
             {/* Climate */}
-            <div style={inputGroup}>
-              <label style={label}>
-                <FaThermometerHalf style={{ marginRight: 8 }} />
+            <div className="cr-input-group">
+              <label className="cr-label">
+                <FaThermometerHalf className="cr-label-icon" />
                 {t('climate') || 'Climate'}
               </label>
               <select 
                 value={formData.climate} 
                 onChange={(e) => handleInputChange('climate', e.target.value)}
-                style={select}
+                className="cr-select"
                 required
               >
                 <option value="">{t('select_climate') || 'Select Climate'}</option>
@@ -486,15 +483,15 @@ Generated on: ${new Date().toLocaleDateString()}
             </div>
 
             {/* Season */}
-            <div style={inputGroup}>
-              <label style={label}>
-                <FaCalendarAlt style={{ marginRight: 8 }} />
+            <div className="cr-input-group">
+              <label className="cr-label">
+                <FaCalendarAlt className="cr-label-icon" />
                 {t('season') || 'Season'}
               </label>
               <select 
                 value={formData.season} 
                 onChange={(e) => handleInputChange('season', e.target.value)}
-                style={select}
+                className="cr-select"
                 required
               >
                 <option value="">{t('select_season') || 'Select Season'}</option>
@@ -507,15 +504,15 @@ Generated on: ${new Date().toLocaleDateString()}
             </div>
 
             {/* Water Availability */}
-            <div style={inputGroup}>
-              <label style={label}>
-                <FaWater style={{ marginRight: 8 }} />
+            <div className="cr-input-group">
+              <label className="cr-label">
+                <FaWater className="cr-label-icon" />
                 {t('water_availability') || 'Water Availability'}
               </label>
               <select 
                 value={formData.waterAvailability} 
                 onChange={(e) => handleInputChange('waterAvailability', e.target.value)}
-                style={select}
+                className="cr-select"
                 required
               >
                 <option value="">{t('select_water_availability') || 'Select Water Availability'}</option>
@@ -528,15 +525,15 @@ Generated on: ${new Date().toLocaleDateString()}
             </div>
 
             {/* Land Size */}
-            <div style={inputGroup}>
-              <label style={label}>
+            <div className="cr-input-group">
+              <label className="cr-label">
                 {t('land_size') || 'Land Size (Acres)'}
               </label>
               <input 
                 type="number" 
                 value={formData.landSize} 
                 onChange={(e) => handleInputChange('landSize', e.target.value)}
-                style={input}
+                className="cr-input"
                 placeholder={t('enter_land_size') || 'Enter land size in acres'}
                 min="0.1"
                 step="0.1"
@@ -544,16 +541,16 @@ Generated on: ${new Date().toLocaleDateString()}
             </div>
 
             {/* Budget */}
-            <div style={inputGroup}>
-              <label style={label}>
-                <FaMoneyBillWave style={{ marginRight: 8 }} />
+            <div className="cr-input-group">
+              <label className="cr-label">
+                <FaMoneyBillWave className="cr-label-icon" />
                 {t('budget_per_acre') || 'Budget per Acre (₹)'}
               </label>
               <input 
                 type="number" 
                 value={formData.budget} 
                 onChange={(e) => handleInputChange('budget', e.target.value)}
-                style={input}
+                className="cr-input"
                 placeholder={t('enter_budget') || 'Enter budget in ₹'}
                 min="1000"
                 step="1000"
@@ -561,14 +558,14 @@ Generated on: ${new Date().toLocaleDateString()}
             </div>
 
             {/* Experience Level */}
-            <div style={inputGroup}>
-              <label style={label}>
+            <div className="cr-input-group">
+              <label className="cr-label">
                 {t('farming_experience') || 'Farming Experience'}
               </label>
               <select 
                 value={formData.experience} 
                 onChange={(e) => handleInputChange('experience', e.target.value)}
-                style={select}
+                className="cr-select"
                 required
               >
                 <option value="">{t('select_experience_level') || 'Select Experience Level'}</option>
@@ -581,15 +578,15 @@ Generated on: ${new Date().toLocaleDateString()}
             </div>
 
             {/* Market Preference */}
-            <div style={inputGroup}>
-              <label style={label}>
-                <FaChartLine style={{ marginRight: 8 }} />
+            <div className="cr-input-group">
+              <label className="cr-label">
+                <FaChartLine className="cr-label-icon" />
                 {t('market_preference') || 'Market Preference'}
               </label>
               <select 
                 value={formData.marketPreference} 
                 onChange={(e) => handleInputChange('marketPreference', e.target.value)}
-                style={select}
+                className="cr-select"
                 required
               >
                 <option value="">{t('select_market_preference') || 'Select Market Preference'}</option>
@@ -602,125 +599,111 @@ Generated on: ${new Date().toLocaleDateString()}
             </div>
 
             {/* Location */}
-            <div style={inputGroup}>
-              <label style={label}>
-                <FaMapMarkerAlt style={{ marginRight: 8 }} />
+            <div className="cr-input-group">
+              <label className="cr-label">
+                <FaMapMarkerAlt className="cr-label-icon" />
                 {t('location_optional') || 'Location (Optional)'}
               </label>
               <input 
                 type="text" 
                 value={formData.location} 
                 onChange={(e) => handleInputChange('location', e.target.value)}
-                style={input}
+                className="cr-input"
                 placeholder={t('enter_location') || 'Enter your location for better recommendations'}
               />
             </div>
           </div>
 
-          <button type="submit" style={submitButton}>
-            Get Crop Recommendations
+          <button type="submit" className="cr-submit-btn">
+            <FaChartLine />
+            {t('get_recommendations', 'Get AI Crop Recommendations')}
           </button>
         </form>
       ) : (
         <div style={resultsContainer}>
           {loading ? (
-            <div style={loadingStyle}>
-              <div style={spinner}></div>
-              <p>{t('analyzing_data') || 'Analyzing your farm data...'}</p>
-              <p style={{ fontSize: '14px', color: '#666' }}>
-                {t('ai_processing') || 'Our AI is processing soil, climate, and market data to find the best crops for you.'}
+            <div className="cr-ai-scanner">
+              <div className="cr-scanner-ring"></div>
+              <h3 className="cr-scanner-text">{t('analyzing_data', 'AI Processing Farm Data...')}</h3>
+              <p className="cr-scanner-subtext">
+                {t('ai_processing', 'Analyzing soil composition, historical climate patterns, and real-time market trends to determine your optimal crop portfolio.')}
               </p>
             </div>
           ) : (
             <>
-              <div style={resultsHeader}>
-                <h2>{t('your_recommendations') || 'Your Personalized Crop Recommendations'}</h2>
-                <div style={headerActions}>
-                  <button onClick={resetForm} style={resetButton}>
-                    {t('new_analysis') || 'New Analysis'}
-                  </button>
-                </div>
+              <div className="cr-header" style={{ marginTop: '40px' }}>
+                <h2 className="cr-title" style={{ fontSize: '2rem' }}>
+                  {t('your_recommendations') || 'Optimal Crop Portfolio'}
+                </h2>
+                <button onClick={resetForm} className="cr-btn-secondary" style={{ width: 'fit-content', margin: '0 auto' }}>
+                  {t('new_analysis') || 'Run New Analysis'}
+                </button>
               </div>
 
-              <div style={recommendationsGrid}>
+              <div className="cr-results-grid">
                 {recommendations.map((crop, index) => (
-                  <div key={crop.key} style={cropCard}>
-                    <div style={cardHeader}>
-                      <h3 style={cropName}>{crop.name}</h3>
-                      <div style={scoreBadge(crop.suitability)}>
-                        {crop.score}/100
+                  <div key={crop.key} className="cr-result-card">
+                    <div className="cr-card-header">
+                      <div>
+                        <h3 className="cr-crop-name">{t(`crop_${crop.name.toLowerCase().replace(' ', '_')}`, crop.name)}</h3>
+                        <p className="cr-crop-sci">{crop.scientificName}</p>
                       </div>
-                    </div>
-                    
-                    <div style={suitabilityBadge(crop.suitability)}>
-                      {crop.suitability} Match
-                    </div>
-
-                    <div style={cropDetails}>
-                      <div style={detailRow}>
-                        <span style={detailLabel}>Scientific Name:</span>
-                        <span>{crop.scientificName}</span>
-                      </div>
-                      <div style={detailRow}>
-                        <span style={detailLabel}>{t('profit_potential') || 'Profit Potential'}:</span>
-                        <span style={profitBadge(crop.profit)}>{crop.profit}</span>
-                      </div>
-                      
-                      <div style={detailRow}>
-                        <span style={detailLabel}>{t('risk_level') || 'Risk Level'}:</span>
-                        <span style={riskBadge(crop.risk)}>{crop.risk}</span>
-                      </div>
-                      
-                      <div style={detailRow}>
-                        <span style={detailLabel}>{t('duration') || 'Duration'}:</span>
-                        <span>{crop.duration}</span>
-                      </div>
-                      
-                      <div style={detailRow}>
-                        <span style={detailLabel}>{t('investment') || 'Investment'}:</span>
-                        <span>{crop.investment}</span>
-                      </div>
-                      
-                      <div style={detailRow}>
-                        <span style={detailLabel}>{t('expected_yield') || 'Expected Yield'}:</span>
-                        <span>{crop.yield}</span>
+                      <div className="cr-ring-container">
+                        <svg viewBox="0 0 36 36" className="cr-circular-chart">
+                          <path className="cr-circle-bg"
+                            d="M18 2.0845
+                              a 15.9155 15.9155 0 0 1 0 31.831
+                              a 15.9155 15.9155 0 0 1 0 -31.831"
+                          />
+                          <path className="cr-circle"
+                            strokeDasharray={`${crop.score}, 100`}
+                            d="M18 2.0845
+                              a 15.9155 15.9155 0 0 1 0 31.831
+                              a 15.9155 15.9155 0 0 1 0 -31.831"
+                            style={{ stroke: crop.score >= 80 ? '#10b981' : crop.score >= 60 ? '#f59e0b' : '#ef4444' }}
+                          />
+                          <text x="18" y="20.35" className="cr-percentage">{crop.score}%</text>
+                        </svg>
                       </div>
                     </div>
 
-                    <div style={cardActions}>
-                      <button onClick={() => setSelectedCrop(crop)} style={primaryButton}>
-                        <FaStar style={{ marginRight: '4px' }} />
-                        {t('view_details') || 'View Details'}
+                    <div className="cr-bento-stats">
+                      <div className="cr-bento-box">
+                        <div className="cr-bento-label">{t('profit') || 'Profit'}</div>
+                        <div className={`cr-bento-value ${crop.profit.includes('High') ? 'val-high' : 'val-medium'}`}>
+                          {t(`profit_${crop.profit.toLowerCase().replace(' ', '_')}`) || crop.profit}
+                        </div>
+                      </div>
+                      <div className="cr-bento-box">
+                        <div className="cr-bento-label">{t('risk') || 'Risk'}</div>
+                        <div className={`cr-bento-value ${crop.risk === 'Low' ? 'val-high' : crop.risk === 'Medium' ? 'val-medium' : 'val-low'}`}>
+                          {t(`risk_${crop.risk.toLowerCase().replace(' ', '_')}`) || crop.risk}
+                        </div>
+                      </div>
+                      <div className="cr-bento-box">
+                        <div className="cr-bento-label">{t('duration') || 'Duration'}</div>
+                        <div className="cr-bento-value" style={{ color: '#f8fafc' }}>
+                          {crop.duration.split(' ')[0]} {t(crop.duration.split(' ')[1]) || crop.duration.split(' ')[1]}
+                        </div>
+                      </div>
+                      <div className="cr-bento-box">
+                        <div className="cr-bento-label">{t('yield') || 'Yield'}</div>
+                        <div className="cr-bento-value" style={{ color: '#f8fafc' }}>
+                          {crop.yield.split(' ')[0]} {t(crop.yield.split(' ')[1]) || crop.yield.split(' ')[1]} {crop.yield.split(' ').slice(2).join(' ')}
+                        </div>
+                      </div>
+                    </div>
+
+                    <div className="cr-card-actions">
+                      <button onClick={() => saveRecommendation(crop)} className="cr-btn-primary">
+                        <FaBookmark /> {t('save') || 'Save'}
                       </button>
-                      <button onClick={() => saveRecommendation(crop)} style={secondaryButton}>
-                        <FaBookmark style={{ marginRight: '4px' }} />
-                        Save
-                      </button>
-                      <button onClick={() => downloadReport(crop)} style={downloadButton}>
-                        <FaDownload style={{ marginRight: '4px' }} />
-                        Download
+                      <button onClick={() => setSelectedCrop(crop)} className="cr-btn-secondary">
+                        <FaStar /> {t('details') || 'Details'}
                       </button>
                     </div>
                   </div>
                 ))}
-              </div>
-
-              <div style={insightsSection}>
-                <h3>{t('ai_insights') || 'AI Insights'}</h3>
-                <div style={insightsGrid}>
-                  <div style={insightCard}>
-                    <h4>{t('market_trends') || 'Market Trends'}</h4>
-                    <p>{t('market_insight') || 'Current market prices are favorable for pulses and oilseeds. Consider diversifying your crop portfolio.'}</p>
-                  </div>
-                  <div style={insightCard}>
-                    <h4>{t('crop_rotation') || 'Crop Rotation'}</h4>
-                    <p>{t('rotation_insight') || 'Implementing crop rotation can improve soil health and reduce pest pressure. Consider alternating between different crop families.'}</p>
-                  </div>
-                  <div style={insightCard}>
-                    <h4>{t('soil_health') || 'Soil Health'}</h4>
-                    <p>{t('soil_insight') || 'Your soil type is suitable for multiple crops. Consider crop rotation to maintain soil fertility.'}</p>
-                  </div>
-                </div>
               </div>
             </>
           )}

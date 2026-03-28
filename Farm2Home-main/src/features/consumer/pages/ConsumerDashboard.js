@@ -256,34 +256,52 @@ const ConsumerDashboard = () => {
       {/* STICKY NAVBAR */}
       {/* HERO */}
       <section className="cd-hero">
-        <div className="cd-hero-bg"></div>
-        <div className="cd-hero-overlay"></div>
+        <div className="cd-mesh-blob cd-mesh-blob-1" />
+        <div className="cd-mesh-blob cd-mesh-blob-2" />
+        <div className="cd-mesh-blob cd-mesh-blob-3" />
+        <div className="cd-hero-noise" />
+
         <div className="cd-hero-content">
+          <div className="cd-hero-badge">
+            <FaLeaf style={{ color: '#10b981' }}/> 
+            <span>{getGreeting()}, <strong>{firstName}</strong></span>
+          </div>
           <h1 className="cd-hero-title">
             Fresh from the Farm,<br />
             <span className="cd-hero-highlight">Straight to Your Door</span>
           </h1>
           <p className="cd-hero-sub">
-            {getGreeting()}, <strong>{firstName}</strong>! Discover locally-sourced produce from farmers near you -- no middlemen, pure freshness.
+            Discover locally-sourced produce from farmers near you — no middlemen, pure freshness.
           </p>
-          <div className="cd-hero-search">
-            <FaSearch className="cd-hs-icon" />
-            <input className="cd-hs-input" placeholder="Search rice, tomato, mango, wheat..." value={searchTerm} onChange={e => setSearchTerm(e.target.value)} />
-          </div>
-          <div className="cd-hero-pills">
-            {['Tomato','Onion','Rice','Mango','Wheat'].map(q => (
-              <button key={q} className="cd-hero-pill" onClick={() => setSearchTerm(q)}>{q}</button>
-            ))}
+
+          <div className="cd-hero-search-container">
+            <div className="cd-hero-search-glass">
+              <FaSearch className="cd-hs-icon" />
+              <input 
+                className="cd-hs-input" 
+                placeholder="Search rice, tomato, mango..." 
+                value={searchTerm} 
+                onChange={e => setSearchTerm(e.target.value)} 
+              />
+              <button className="cd-hs-search-btn">Search</button>
+            </div>
+            
+            <div className="cd-hero-pills">
+              {['Tomato','Onion','Rice','Mango','Wheat'].map(q => (
+                <button key={q} className="cd-hero-pill" onClick={() => setSearchTerm(q)}>{q}</button>
+              ))}
+            </div>
           </div>
         </div>
-        <div className="cd-hero-stats">
+
+        <div className="cd-hero-stats-glass">
           <div className="cd-hs-stat"><span className="cd-hs-num">{productsToUse.length}+</span><span className="cd-hs-lbl">Products</span></div>
           <div className="cd-hs-divider"></div>
           <div className="cd-hs-stat"><span className="cd-hs-num">{organicCount}</span><span className="cd-hs-lbl">Organic</span></div>
           <div className="cd-hs-divider"></div>
           <div className="cd-hs-stat"><span className="cd-hs-num">150+</span><span className="cd-hs-lbl">Farmers</span></div>
           <div className="cd-hs-divider"></div>
-          <div className="cd-hs-stat"><span className="cd-hs-num">Rs.500+</span><span className="cd-hs-lbl">Free Delivery</span></div>
+          <div className="cd-hs-stat"><span className="cd-hs-num">Free</span><span className="cd-hs-lbl">Delivery</span></div>
         </div>
       </section>
 

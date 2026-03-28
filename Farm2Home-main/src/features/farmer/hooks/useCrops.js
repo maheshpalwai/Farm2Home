@@ -1,4 +1,4 @@
-import { useState, useEffect, useCallback } from 'react';
+import { useState, useEffect, useCallback, useMemo } from 'react';
 import { db, auth } from '../../../firebase';
 import { 
   collection, 
@@ -20,29 +20,41 @@ import { onAuthStateChanged } from 'firebase/auth';
 export const useCrops = () => {
   const [savedCrops, setSavedCrops] = useState([]);
   const [loading, setLoading] = useState(false);
-  const [analytics, setAnalytics] = useState({
-    totalCrops: 0,
-    totalValue: 0,
-    availableCrops: 0,
-    soldCrops: 0
-  });
+  const analytics = useMemo(() => {
+    const totalCropsCount = savedCrops.length;
+    
+    // Stock Values: sum of (price * quantity) for available, pending, and reserved crops
+    // Available Stock: total quantity of available and pending crops
+    // Total Sold: total quantity of sold crops
+    let totalVal = 0;
+    let availQty = 0;
+    let soldQty = 0;
 
-  // Calculate analytics from saved crops
-  const calculateAnalytics = useCallback(() => {
-    const totalCrops = savedCrops.length;
-    const totalValue = savedCrops.reduce((sum, crop) => sum + (parseFloat(crop.price) || 0), 0);
-    const availableCrops = savedCrops.filter(crop => crop.status === 'available').length;
-    const soldCrops = savedCrops.filter(crop => crop.status === 'sold').length;
-
-    setAnalytics({
-      totalCrops,
-      totalValue,
-      availableCrops,
-      soldCrops
+    savedCrops.forEach(crop => {
+      const q = parseFloat(crop.quantity) || 0;
+      const p = parseFloat(crop.price) || 0;
+      
+      const status = (crop.status || '').toLowerCase();
+      
+      if (status === 'available' || status === 'pending' || status === 'reserved') {
+        totalVal += (p * q);
+        if (status !== 'reserved') {
+          availQty += q;
+        }
+      } else if (status === 'sold') {
+        soldQty += q;
+      }
     });
+
+    return {
+      totalCrops: totalCropsCount,
+      totalValue: totalVal,
+      availableCrops: availQty,
+      soldCrops: soldQty
+    };
   }, [savedCrops]);
 
-  // Real-time Firestore listener — replaces loadCrops + getDocs
+
   const subscribeToCrops = useCallback((userId) => {
     setLoading(true);
     const q = query(
@@ -70,7 +82,7 @@ export const useCrops = () => {
     return unsubscribe;
   }, []);
 
-  // Add new crop to Firebase Firestore
+
   const addCrop = async (cropData) => {
     setLoading(true);
     try {
@@ -122,7 +134,8 @@ export const useCrops = () => {
         createdAt: new Date().toISOString() // For immediate display
       };
       
-      setSavedCrops([newCrop, ...savedCrops]);
+      // Set saved crops happens automatically via onSnapshot listener over Firestore
+      // setSavedCrops([newCrop, ...savedCrops]);
       return { success: true, crop: newCrop };
     } catch (error) {
       let errorMessage = 'Failed to add crop: ';
@@ -144,7 +157,8 @@ export const useCrops = () => {
     try {
       const cropDocRef = doc(db, 'crops', cropId);
       await deleteDoc(cropDocRef);
-      setSavedCrops(savedCrops.filter(crop => crop.id !== cropId));
+      // Removed local setSavedCrops since onSnapshot will sync automatically
+      // setSavedCrops(savedCrops.filter(crop => crop.id !== cropId));
       return { success: true };
     } catch (error) {
       return { success: false, error: error.message };
@@ -156,9 +170,7 @@ export const useCrops = () => {
     try {
       const cropDocRef = doc(db, 'crops', cropId);
       await updateDoc(cropDocRef, { status: newStatus, updatedAt: serverTimestamp() });
-      setSavedCrops(savedCrops.map(crop =>
-        crop.id === cropId ? { ...crop, status: newStatus } : crop
-      ));
+      // Removed local setSavedCrops since onSnapshot will sync automatically
       return { success: true };
     } catch (error) {
       return { success: false, error: error.message };
@@ -170,9 +182,7 @@ export const useCrops = () => {
     try {
       const cropDocRef = doc(db, 'crops', cropId);
       await updateDoc(cropDocRef, { ...cropData, updatedAt: serverTimestamp() });
-      setSavedCrops(savedCrops.map(crop =>
-        crop.id === cropId ? { ...crop, ...cropData } : crop
-      ));
+      // Removed local setSavedCrops since onSnapshot will sync automatically
       return { success: true };
     } catch (error) {
       return { success: false, error: error.message };
@@ -198,10 +208,7 @@ export const useCrops = () => {
     };
   }, [subscribeToCrops]);
 
-  // Recalculate analytics when crops change
-  useEffect(() => {
-    calculateAnalytics();
-  }, [calculateAnalytics]);
+
 
   return {
     savedCrops,
