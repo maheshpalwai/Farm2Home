@@ -1,5 +1,6 @@
 import React, { useState } from 'react';
 import { FaHeart, FaStar, FaShoppingCart, FaLeaf, FaTruck, FaShieldAlt, FaMapMarkerAlt, FaRupeeSign, FaCalendarAlt } from 'react-icons/fa';
+import { useTranslation } from 'react-i18next';
 import './ProductCard.css';
 
 const ProductCard = ({
@@ -12,6 +13,7 @@ const ProductCard = ({
   isAlreadyRequested = false,
 }) => {
   const [imageError, setImageError] = useState(false);
+  const { t } = useTranslation();
   const defaultImage = '/images/default_crop.jpg';
   
   const handleAddToCart = (e) => {
@@ -54,14 +56,14 @@ const ProductCard = ({
         <div className="product-badges">
           {product.organic && (
             <span className="badge badge-organic">
-              Organic
+              {t('pc_organic','Organic')}
             </span>
           )}
           {product.featured && (
-            <span className="badge badge-featured">Featured</span>
+            <span className="badge badge-featured">{t('pc_featured','Featured')}</span>
           )}
           {product.trending && (
-            <span className="badge badge-trending">Trending</span>
+            <span className="badge badge-trending">{t('pc_trending','Trending')}</span>
           )}
         </div>
 
@@ -90,7 +92,7 @@ const ProductCard = ({
         <div className="product-rating">
           <FaStar className="star-icon" />
           <span>{product.rating}</span>
-          <span className="sales-count">({product.totalSales} sales)</span>
+          <span className="sales-count">({product.totalSales} {t('pc_sales','sales')})</span>
         </div>
 
         {/* Location */}
@@ -106,7 +108,7 @@ const ProductCard = ({
           return (
             <div style={{ display:'flex', alignItems:'center', gap:5, fontSize:11, fontWeight:600, color: isExpired ? '#dc2626' : '#059669', marginTop:4 }}>
               <FaCalendarAlt style={{ fontSize:10 }} />
-              {isExpired ? 'Expired' : 'Available till'}: {new Date(product.availableUntil + 'T00:00:00').toLocaleDateString('en-IN', { day:'numeric', month:'short' })}
+              {isExpired ? t('pc_expired','Expired') : t('pc_available_till','Available till')}: {new Date(product.availableUntil + 'T00:00:00').toLocaleDateString('en-IN', { day:'numeric', month:'short' })}
             </div>
           );
         })()}
@@ -130,12 +132,12 @@ const ProductCard = ({
         <div className="product-features">
           {product.fastDelivery && (
             <span className="feature">
-              <FaTruck /> Fast Delivery
+              <FaTruck /> {t('pc_fast_delivery','Fast Delivery')}
             </span>
           )}
           {product.certifications && product.certifications.length > 0 && (
             <span className="feature">
-              <FaShieldAlt /> Certified
+              <FaShieldAlt /> {t('pc_certified','Certified')}
             </span>
           )}
         </div>
@@ -147,15 +149,15 @@ const ProductCard = ({
             onClick={handleAddToCart}
           >
             <FaShoppingCart />
-            Add to Cart
+            {t('pc_add_to_cart','Add to Cart')}
           </button>
           <button
             className="request-now-btn"
             onClick={handleRequestNow}
             disabled={isAlreadyRequested}
-            title={isAlreadyRequested ? 'You already requested this crop' : 'Request this crop'}
+            title={isAlreadyRequested ? t('pc_already_requested_hint','You already requested this crop') : t('pc_request_hint','Request this crop')}
           >
-            {isAlreadyRequested ? 'Already Requested' : 'Request Now'}
+            {isAlreadyRequested ? t('pc_already_requested','Already Requested') : t('pc_request_now','Request Now')}
           </button>
         </div>
       </div>

@@ -58,31 +58,6 @@ const HomePage = () => {
   // Testimonial carousel state
   const [currentTestimonialIndex, setCurrentTestimonialIndex] = useState(0)
   const [testimonials, setTestimonials] = useState([])
-  
-  // Timeline scroll logic
-  const [timelineProgress, setTimelineProgress] = useState(0)
-  const timelineRef = useRef(null)
-
-  useEffect(() => {
-    const handleScroll = () => {
-      if (!timelineRef.current) return;
-      const rect = timelineRef.current.getBoundingClientRect();
-      const windowHeight = window.innerHeight;
-      
-      // Start slightly before it hits the bottom
-      const startTrigger = windowHeight * 0.85;
-      const totalScrollDistance = rect.height + windowHeight * 0.5;
-      const scrolled = startTrigger - rect.top;
-      
-      let progress = (scrolled / totalScrollDistance) * 100;
-      progress = Math.max(0, Math.min(100, progress));
-      setTimelineProgress(progress);
-    };
-
-    window.addEventListener('scroll', handleScroll, { passive: true });
-    handleScroll();
-    return () => window.removeEventListener('scroll', handleScroll);
-  }, []);
 
   const handleForgotPassword = async (e) => {
     e.preventDefault()
@@ -262,11 +237,12 @@ const HomePage = () => {
       const user = userCredential.user;
 
       // Save profile to Firestore users/{uid}
+      const derivedName = email.trim().split('@')[0].replace(/[._]/g, ' ').replace(/\b\w/g, c => c.toUpperCase());
       const userProfile = {
         uid: user.uid,
         email: user.email,
         role: selectedRole,          // 'consumer' or 'farmer'
-        name: '',
+        name: derivedName,
         status: 'active',
         createdAt: serverTimestamp()
       };
@@ -426,9 +402,12 @@ const HomePage = () => {
         .filter((review) => review.text.length > 0)
 
       const defaultTestimonials = [
-        { name: 'Arjun Reddy', role: 'Consumer', text: 'Farm2Home completely changed how my family eats! The freshness is unmatched. The cherry tomatoes I get here last a week longer than supermarket ones. Absolutely revolutionary.', rating: 5 },
-        { name: 'Srinivas Rao', role: 'Farmer', text: 'I used to struggle with greedy middlemen taking 40% of my profits. Now I sell directly to honest buyers at a fair price. Listing my harvest takes 5 minutes.', rating: 5 },
-        { name: 'Priya Sharma', role: 'Consumer', text: 'The translucent pricing makes me trust the platform. I know exactly how much goes to the hardworking farmers. Plus, the direct delivery is always on time.', rating: 4.8 },
+        { name: t('testimonial_1_name', 'Arjun Reddy'), role: t('testimonial_1_role', 'Consumer'), text: t('testimonial_1_text', 'Farm2Home completely changed how my family eats! The freshness is unmatched. Absolutely revolutionary.'), rating: 5 },
+        { name: t('testimonial_2_name', 'Srinivas Rao'), role: t('testimonial_2_role', 'Farmer'), text: t('testimonial_2_text', 'I used to struggle with greedy middlemen. Now I sell directly to honest buyers at a fair price.'), rating: 5 },
+        { name: t('testimonial_3_name', 'Priya Sharma'), role: t('testimonial_3_role', 'Consumer'), text: t('testimonial_3_text', 'The translucent pricing makes me trust the platform. I know exactly how much goes to the farmers.'), rating: 4.8 },
+        { name: t('testimonial_4_name', 'Ramesh Kumar'), role: t('testimonial_4_role', 'Organic Farmer'), text: t('testimonial_4_text', 'Farm2Home has completely changed how I sell my produce. I no longer have to wait at local markets for hours.'), rating: 5 },
+        { name: t('testimonial_5_name', 'Anita Reddy'), role: t('testimonial_5_role', 'Consumer from Hyderabad'), text: t('testimonial_5_text', 'The quality of vegetables I receive is unmatched. You can truly taste the difference of fresh harvest.'), rating: 5 },
+        { name: t('testimonial_6_name', 'Suresh Rao'), role: t('testimonial_6_role', 'Restaurant Owner'), text: t('testimonial_6_text', 'As a chef, I value consistent quality. Farm2Home provides reliable sourcing directly from local fields.'), rating: 4.9 },
       ];
 
       setTestimonials(items.length > 0 ? items : defaultTestimonials)
@@ -436,9 +415,12 @@ const HomePage = () => {
     }, (error) => {
       logger.error('Failed to load reviews for testimonials:', error)
       const defaultTestimonials = [
-        { name: 'Arjun Reddy', role: 'Consumer', text: 'Farm2Home completely changed how my family eats! The freshness is unmatched. The cherry tomatoes I get here last a week longer than supermarket ones. Absolutely revolutionary.', rating: 5 },
-        { name: 'Srinivas Rao', role: 'Farmer', text: 'I used to struggle with greedy middlemen taking 40% of my profits. Now I sell directly to honest buyers at a fair price. Listing my harvest takes 5 minutes.', rating: 5 },
-        { name: 'Priya Sharma', role: 'Consumer', text: 'The translucent pricing makes me trust the platform. I know exactly how much goes to the hardworking farmers. Plus, the direct delivery is always on time.', rating: 4.8 },
+        { name: t('testimonial_1_name', 'Arjun Reddy'), role: t('testimonial_1_role', 'Consumer'), text: t('testimonial_1_text', 'Farm2Home completely changed how my family eats! The freshness is unmatched. Absolutely revolutionary.'), rating: 5 },
+        { name: t('testimonial_2_name', 'Srinivas Rao'), role: t('testimonial_2_role', 'Farmer'), text: t('testimonial_2_text', 'I used to struggle with greedy middlemen. Now I sell directly to honest buyers at a fair price.'), rating: 5 },
+        { name: t('testimonial_3_name', 'Priya Sharma'), role: t('testimonial_3_role', 'Consumer'), text: t('testimonial_3_text', 'The translucent pricing makes me trust the platform. I know exactly how much goes to the farmers.'), rating: 4.8 },
+        { name: t('testimonial_4_name', 'Ramesh Kumar'), role: t('testimonial_4_role', 'Organic Farmer'), text: t('testimonial_4_text', 'Farm2Home has completely changed how I sell my produce. I no longer have to wait at local markets for hours.'), rating: 5 },
+        { name: t('testimonial_5_name', 'Anita Reddy'), role: t('testimonial_5_role', 'Consumer from Hyderabad'), text: t('testimonial_5_text', 'The quality of vegetables I receive is unmatched. You can truly taste the difference of fresh harvest.'), rating: 5 },
+        { name: t('testimonial_6_name', 'Suresh Rao'), role: t('testimonial_6_role', 'Restaurant Owner'), text: t('testimonial_6_text', 'As a chef, I value consistent quality. Farm2Home provides reliable sourcing directly from local fields.'), rating: 4.9 },
       ];
 
       // In case of error, 'items' is not defined, so we always fall back to default testimonials.
@@ -512,10 +494,6 @@ const HomePage = () => {
               {t('direct_from', 'Direct from the Farm,')} <br />
               <span className="hero-title-highlight">{t('farm_to_home', 'Fresh to your Home')}</span>
             </h1>
-            
-            <p className="hero-subtitle">
-              {t('hero_subtitle_text', 'Connect directly with local farmers for the freshest, highest-quality produce, or join as a farmer to reach a wider market.')}
-            </p>
             
             <div className="cta-buttons" style={{ marginTop: '20px', display: 'flex', gap: '20px', flexWrap: 'wrap' }}>
               <button 
@@ -872,79 +850,74 @@ const HomePage = () => {
             { icon: FaChartLine, title: t('feature_pricing_title', 'Transparent Pricing'), desc: t('feature_pricing_desc', 'No hidden middlemen cuts. Consumers get fair market prices, and 100% of the produce value goes directly to the hardworking farmers.'), color: '#ff6b35' },
             { icon: FaUsers, title: t('feature_community_title', 'Empowering Farmers'), desc: t('feature_community_desc', 'We provide local farmers with cutting-edge AI tools and direct-to-market access, ensuring they grow their business sustainably and profitably.'), color: '#4ecdc4' },
             { icon: FaMapMarkerAlt, title: t('feature_local_title', 'Hyper-Local Sourcing'), desc: t('feature_local_desc', 'Discover exactly where your food comes from. Support the local agriculture economy and reduce your carbon footprint with every order.'), color: '#45b7d1' }
-          ].map((feature, index) => (
-            <div 
-              key={index}
-              style={{
-                ...featureCard,
-                transform: hoveredCard === index ? 'translateY(-12px) scale(1.02)' : 'translateY(0) scale(1)',
-                boxShadow: hoveredCard === index ? `0 20px 40px -10px ${feature.color}50, inset 0 1px 0 rgba(255, 255, 255, 0.2)` : '0 8px 32px 0 rgba(0, 0, 0, 0.2), inset 0 1px 0 rgba(255, 255, 255, 0.05)',
-                borderColor: hoveredCard === index ? `${feature.color}80` : 'rgba(255,255,255,0.1)'
-              }}
-              onMouseEnter={() => setHoveredCard(index)}
-              onMouseLeave={() => setHoveredCard(null)}
-              className={`bento-item-${index}`}
-            >
+          ].map((feature, index) => {
+            const isLightBg = index === 1; // Index 1 is Fair Price card which has a light background in CSS
+            return (
               <div 
-                className="bento-icon-container"
-                style={{ 
-                  ...featureIconContainer, 
-                backgroundColor: hoveredCard === index ? feature.color : `${feature.color}15`,
-                transform: hoveredCard === index ? 'scale(1.1) rotate(5deg)' : 'scale(1) rotate(0deg)',
-                boxShadow: hoveredCard === index ? `0 10px 20px ${feature.color}40` : 'none'
-              }}>
-                <feature.icon style={{ ...featureIcon, color: hoveredCard === index ? 'white' : feature.color }} />
+                key={index}
+                style={{
+                  ...featureCard,
+                  transform: hoveredCard === index ? 'translateY(-12px) scale(1.02)' : 'translateY(0) scale(1)',
+                  boxShadow: hoveredCard === index ? `0 20px 40px -10px ${feature.color}50, inset 0 1px 0 rgba(255, 255, 255, 0.2)` : '0 8px 32px 0 rgba(0, 0, 0, 0.2), inset 0 1px 0 rgba(255, 255, 255, 0.05)',
+                  borderColor: hoveredCard === index ? `${feature.color}80` : 'rgba(255,255,255,0.1)'
+                }}
+                onMouseEnter={() => setHoveredCard(index)}
+                onMouseLeave={() => setHoveredCard(null)}
+                className={`bento-item-${index}`}
+              >
+                <div 
+                  className="bento-icon-container"
+                  style={{ 
+                    ...featureIconContainer, 
+                  backgroundColor: hoveredCard === index ? feature.color : `${feature.color}15`,
+                  transform: hoveredCard === index ? 'scale(1.1) rotate(5deg)' : 'scale(1) rotate(0deg)',
+                  boxShadow: hoveredCard === index ? `0 10px 20px ${feature.color}40` : 'none'
+                }}>
+                  <feature.icon style={{ ...featureIcon, color: hoveredCard === index ? 'white' : feature.color }} />
+                </div>
+                <h3 style={{...featureTitle, color: isLightBg ? '#0f172a' : '#f8fafc'}}>{feature.title}</h3>
+                <p style={{...featureDesc, color: isLightBg ? '#475569' : '#cbd5e1'}}>{feature.desc}</p>
               </div>
-              <h3 style={featureTitle}>{feature.title}</h3>
-              <p style={featureDesc}>{feature.desc}</p>
-            </div>
-          ))}
+            );
+          })}
         </div>
       </div>
 
       {/* How It Works Section */}
-      <div style={{ ...howItWorksSection, position: 'relative' }} ref={timelineRef}>
-        <h2 style={sectionTitle}>{t('how_it_works', 'How It Works')}</h2>
-        <div style={stepsContainer} className="steps-container timeline-container">
-          <div className="timeline-line-bg"></div>
-          <div className="timeline-line-fill" style={{ '--progress': `${timelineProgress}%` }}></div>
+      <div style={{ ...howItWorksSection, position: 'relative' }}>
+        <h2 style={{...sectionTitle, color: '#1e293b'}}>{t('how_it_works', 'How It Works')}</h2>
+        <div style={stepsContainer} className="steps-container">
           {[
-            { number: '1', title: t('step_1_title', 'Farm Registration'), desc: t('step_1_desc', 'Farmers register and list their fresh produce directly on our platform.'), icon: FaUsers, threshold: 15 },
-            { number: '2', title: t('step_2_title', 'Direct Ordering'), desc: t('step_2_desc', 'Consumers and businesses order exactly what they need at fair prices.'), icon: FaHandshake, threshold: 50 },
-            { number: '3', title: t('step_3_title', 'Swift Delivery'), desc: t('step_3_desc', 'Our logistics ensure produce goes from farm to doorstep within hours.'), icon: FaTruck, threshold: 85 }
+            { number: '1', title: t('step_1_title', 'Farm Registration'), desc: t('step_1_desc', 'Farmers register and list their fresh produce directly on our platform.'), icon: FaUsers },
+            { number: '2', title: t('step_2_title', 'Direct Ordering'), desc: t('step_2_desc', 'Consumers and businesses order exactly what they need at fair prices.'), icon: FaHandshake },
+            { number: '3', title: t('step_3_title', 'Swift Delivery'), desc: t('step_3_desc', 'Our logistics ensure produce goes from farm to doorstep within hours.'), icon: FaTruck }
           ].map((stepItem, index) => {
-            const isActive = timelineProgress >= stepItem.threshold;
             return (
-              <div key={index} style={stepStyle} className={`timeline-step ${isActive ? 'active' : ''}`}>
+              <div key={index} style={stepStyle} className="timeline-step">
                 <div 
                   style={{
                     ...stepNumber,
-                    background: isActive ? 'linear-gradient(135deg, #10b981 0%, #059669 100%)' : '#e5e7eb',
-                    color: isActive ? 'white' : '#9ca3af',
-                    boxShadow: isActive ? '0 4px 15px rgba(16, 185, 129, 0.4)' : 'none',
-                    transition: 'all 0.5s ease'
+                    background: 'linear-gradient(135deg, #10b981 0%, #059669 100%)',
+                    color: 'white',
+                    boxShadow: '0 4px 15px rgba(16, 185, 129, 0.4)',
                   }} 
-                  className="timeline-step-number"
                 >
                   {stepItem.number}
                 </div>
                 <stepItem.icon style={{ 
                   fontSize: '2.5rem', 
-                  color: isActive ? '#10b981' : '#d1d5db', 
+                  color: '#10b981', 
                   marginBottom: '20px', 
-                  transition: 'color 0.5s ease' 
                 }} />
                 <h3 style={{ 
                   ...stepTitle, 
-                  color: isActive ? '#111827' : '#9ca3af', 
-                  transition: 'color 0.5s ease' 
+                  color: '#111827', 
                 }}>
                   {stepItem.title}
                 </h3>
                 <p style={{
                   ...stepDesc,
-                  color: isActive ? '#4b5563' : '#d1d5db',
-                  transition: 'color 0.5s ease'
+                  color: '#4b5563',
                 }}>
                   {stepItem.desc}
                 </p>
@@ -956,7 +929,7 @@ const HomePage = () => {
 
       {/* Testimonials Section */}
       <div style={testimonialsSection}>
-        <h2 style={sectionTitle}>{t('what_users_say', 'What Our Users Say')}</h2>
+        <h2 style={{...sectionTitle, color: '#1e293b'}}>{t('what_users_say', 'What Our Users Say')}</h2>
         <div style={testimonialsCarousel}>
           {testimonials.length === 0 ? (
             <div style={{ ...testimonialCard, position: 'relative', width: '100%', left: 'auto', height: 'auto' }}>
@@ -1417,8 +1390,8 @@ const featureCard = {
   backgroundColor: 'rgba(255, 255, 255, 0.03)',
   backdropFilter: 'blur(24px)',
   WebkitBackdropFilter: 'blur(24px)',
-  padding: '48px 32px',
-  borderRadius: '32px',
+  padding: '20px 16px',
+  borderRadius: '20px',
   textAlign: 'left',
   transition: 'transform 0.4s cubic-bezier(0.16, 1, 0.3, 1), box-shadow 0.4s ease, border-color 0.4s ease',
   border: '1px solid rgba(255, 255, 255, 0.1)',

@@ -521,7 +521,7 @@
   left: 50%;
   width: 4px;
   background: linear-gradient(to bottom, #10b981, #059669);
-  height: calc(var(--progress) * 0.9);
+  height: var(--progress);
   box-shadow: 0 0 15px rgba(16, 185, 129, 0.6);
   transform: translateX(-50%);
   z-index: 2;
@@ -549,6 +549,12 @@
     background: linear-gradient(to right, #10b981, #059669);
     transition: width 0.1s ease-out;
   }
+}
+
+/* Static timeline view */
+.timeline-step {
+  position: relative;
+  z-index: 4;
 }
 
 /* ──── Premium Hero Section ──── */
@@ -645,7 +651,7 @@
 }
 
 .hero-title {
-  font-size: clamp(3rem, 5vw, 4.5rem);
+  font-size: clamp(2rem, 4vw, 3.5rem);
   font-weight: 800;
   line-height: 1.1;
   color: #f8fafc;

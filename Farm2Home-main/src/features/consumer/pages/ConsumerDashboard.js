@@ -1,5 +1,6 @@
 import React, { useState, useEffect, useRef } from 'react';
 import { useNavigate } from 'react-router-dom';
+import { useTranslation } from 'react-i18next';
 import { auth, db } from '../../../firebase';
 import { findCropByKeyword } from '../../../data/cropData';
 import { doc, onSnapshot, updateDoc, collection, query, where, getDocs } from 'firebase/firestore';
@@ -43,6 +44,7 @@ const getDemandUnit = (demand) => demand?.quantityUnit || 'kg';
 
 const ConsumerDashboard = () => {
   const navigate = useNavigate();
+  const { t } = useTranslation();
   const { products: firestoreProducts, loading } = useProducts({ realtime: true });
   const productsToUse = firestoreProducts;
   const { addToCart, getTotalItems } = useCart();
@@ -104,7 +106,9 @@ const ConsumerDashboard = () => {
         doc(db, 'users', user.uid),
         (snap) => {
           const d = snap.data() || {};
-          setUserProfile({ name: d.name||user.displayName||user.email?.split('@')[0]||'there', photoURL: d.photoURL||user.photoURL||'', email: user.email||'', phone: d.phoneNumber||d.phone||'' });
+          const emailPrefix = (user.email || '').split('@')[0].replace(/[._]/g, ' ').replace(/\b\w/g, c => c.toUpperCase());
+          const resolvedName = d.name || user.displayName || emailPrefix || 'Friend';
+          setUserProfile({ name: resolvedName, photoURL: d.photoURL||user.photoURL||'', email: user.email||'', phone: d.phoneNumber||d.phone||'' });
         },
         (err) => console.warn('ConsumerDashboard profile snapshot error:', err.message)
       );
@@ -168,7 +172,7 @@ const ConsumerDashboard = () => {
   const cartCount    = getTotalItems();
   const favCount     = favorites.length;
   const organicCount = productsToUse.filter(p => p.organic).length;
-  const firstName    = (userProfile.name||'').split(' ')[0] || 'there';
+  const firstName = (userProfile.name || '').split(' ')[0] || (auth.currentUser?.email?.split('@')[0] || 'Friend');
   const activeDemandsCount = myDemands.filter(d => d.status === 'open' || d.status === 'quoted' || d.status === 'in_progress').length;
 
   const STATUS_CONFIG = {
@@ -262,16 +266,20 @@ const ConsumerDashboard = () => {
         <div className="cd-hero-noise" />
 
         <div className="cd-hero-content">
-          <div className="cd-hero-badge">
-            <FaLeaf style={{ color: '#10b981' }}/> 
-            <span>{getGreeting()}, <strong>{firstName}</strong></span>
+          {/* Welcome banner */}
+          <div className="cd-welcome-banner">
+            <FaLeaf className="cd-welcome-leaf" />
+            <div className="cd-welcome-text">
+              <span className="cd-welcome-label">{t('cd_welcome', 'Welcome')}</span>
+              <span className="cd-welcome-name">{firstName}!</span>
+            </div>
           </div>
           <h1 className="cd-hero-title">
-            Fresh from the Farm,<br />
-            <span className="cd-hero-highlight">Straight to Your Door</span>
+            {t('cd_hero_title_line1', 'Fresh from the Farm,')}<br />
+            <span className="cd-hero-highlight">{t('cd_hero_title_line2', 'Straight to Your Door')}</span>
           </h1>
           <p className="cd-hero-sub">
-            Discover locally-sourced produce from farmers near you — no middlemen, pure freshness.
+            {t('cd_hero_sub', 'Discover locally-sourced produce from farmers near you — no middlemen, pure freshness.')}
           </p>
 
           <div className="cd-hero-search-container">
@@ -279,11 +287,11 @@ const ConsumerDashboard = () => {
               <FaSearch className="cd-hs-icon" />
               <input 
                 className="cd-hs-input" 
-                placeholder="Search rice, tomato, mango..." 
+                placeholder={t('cd_search_placeholder', 'Search rice, tomato, mango...')} 
                 value={searchTerm} 
                 onChange={e => setSearchTerm(e.target.value)} 
               />
-              <button className="cd-hs-search-btn">Search</button>
+              <button className="cd-hs-search-btn">{t('cd_search_btn', 'Search')}</button>
             </div>
             
             <div className="cd-hero-pills">
@@ -295,63 +303,63 @@ const ConsumerDashboard = () => {
         </div>
 
         <div className="cd-hero-stats-glass">
-          <div className="cd-hs-stat"><span className="cd-hs-num">{productsToUse.length}+</span><span className="cd-hs-lbl">Products</span></div>
+          <div className="cd-hs-stat"><span className="cd-hs-num">{productsToUse.length}+</span><span className="cd-hs-lbl">{t('cd_stat_products','Products')}</span></div>
           <div className="cd-hs-divider"></div>
-          <div className="cd-hs-stat"><span className="cd-hs-num">{organicCount}</span><span className="cd-hs-lbl">Organic</span></div>
+          <div className="cd-hs-stat"><span className="cd-hs-num">{organicCount}</span><span className="cd-hs-lbl">{t('cd_stat_organic','Organic')}</span></div>
           <div className="cd-hs-divider"></div>
-          <div className="cd-hs-stat"><span className="cd-hs-num">150+</span><span className="cd-hs-lbl">Farmers</span></div>
+          <div className="cd-hs-stat"><span className="cd-hs-num">150+</span><span className="cd-hs-lbl">{t('cd_stat_farmers','Farmers')}</span></div>
           <div className="cd-hs-divider"></div>
-          <div className="cd-hs-stat"><span className="cd-hs-num">Free</span><span className="cd-hs-lbl">Delivery</span></div>
+          <div className="cd-hs-stat"><span className="cd-hs-num">{t('cd_stat_delivery_val','Free')}</span><span className="cd-hs-lbl">{t('cd_stat_delivery','Delivery')}</span></div>
         </div>
       </section>
 
       {/* TRUST STRIP */}
       <div className="cd-trust">
         {[
-          {icon:<FaShieldAlt/>, label:'Safe & Hygienic',   color:'#16a34a'},
-          {icon:<FaLeaf/>,      label:'Farm Fresh Daily',  color:'#16a34a'},
-          {icon:<FaHandshake/>, label:'Support Farmers',   color:'#7c3aed'},
-          {icon:<FaStar/>,      label:'Quality Assured',   color:'#d97706'},
-        ].map((t,i) => (
+          {icon:<FaShieldAlt/>, label: t('cd_trust_safe','Safe & Hygienic'),   color:'#16a34a'},
+          {icon:<FaLeaf/>,      label: t('cd_trust_fresh','Farm Fresh Daily'),  color:'#16a34a'},
+          {icon:<FaHandshake/>, label: t('cd_trust_support','Support Farmers'), color:'#7c3aed'},
+          {icon:<FaStar/>,      label: t('cd_trust_quality','Quality Assured'), color:'#d97706'},
+        ].map((t_item,i) => (
           <div key={i} className="cd-trust-item">
-            <span className="cd-trust-icon" style={{color:t.color}}>{t.icon}</span>
-            <span className="cd-trust-label">{t.label}</span>
+            <span className="cd-trust-icon" style={{color:t_item.color}}>{t_item.icon}</span>
+            <span className="cd-trust-label">{t_item.label}</span>
           </div>
         ))}
       </div>
 
       <div className="cd-container">
 
-        {/* CROP REQUEST SECTION */}
+        {/* MY REQUESTS SECTION */}
         <section className="cd-request-section">
           <div className="cd-section-header">
             <div className="cd-section-title-wrap">
               <div>
-                <h2 className="cd-section-title">Request a Crop</h2>
-                <p className="cd-section-sub">Can't find what you need? Ask farmers directly</p>
+                <h2 className="cd-section-title">{t('cd_my_requests', 'My Requests')}</h2>
+                <p className="cd-section-sub">{t('cd_requests_sub', "Can't find what you need? Ask farmers directly")}</p>
               </div>
             </div>
             <button className="cd-request-btn" onClick={() => setShowRequestModal(true)}>
-              <FaPlusCircle /> New Request
+              <FaPlusCircle /> {t('cd_new_request', 'New Request')}
             </button>
           </div>
 
           {myDemands.length === 0 ? (
             <div className="cd-empty-requests">
-              <h3>No requests yet</h3>
-              <p>Submit your first request -- farmers in your area will bid with their best price.</p>
+              <h3>{t('cd_no_requests_title', 'No requests yet')}</h3>
+              <p>{t('cd_no_requests_sub', 'Submit your first request -- farmers in your area will bid with their best price.')}</p>
               <button className="cd-request-btn cd-request-btn--lg" onClick={() => setShowRequestModal(true)}>
-                <FaPlusCircle /> Request a Crop Now
+                <FaPlusCircle /> {t('cd_request_now_btn', 'Request a Crop Now')}
               </button>
             </div>
           ) : (
             (() => {
               const PRIORITY = {3:0, 2:1, 1:2, 4:3, 5:4};
               const GROUP_LABELS = {
-                3: { label:'Deal Accepted', color:'#065f46', bg:'#d1fae5', border:'#6ee7b7' },
-                2: { label:'Offer Received', color:'#b45309', bg:'#fef3c7', border:'#fde68a' },
-                1: { label:'Waiting for Offer', color:'#1d4ed8', bg:'#eff6ff', border:'#bfdbfe' },
-                4: { label:'In Progress / Completed', color:'#6d28d9', bg:'#ede9fe', border:'#c4b5fd' },
+                3: { label: t('cd_status_deal','Deal Accepted'), color:'#065f46', bg:'#d1fae5', border:'#6ee7b7' },
+                2: { label: t('cd_status_offer','Offer Received'), color:'#b45309', bg:'#fef3c7', border:'#fde68a' },
+                1: { label: t('cd_status_waiting','Waiting for Offer'), color:'#1d4ed8', bg:'#eff6ff', border:'#bfdbfe' },
+                4: { label: t('cd_status_progress','In Progress / Completed'), color:'#6d28d9', bg:'#ede9fe', border:'#c4b5fd' },
               };
               const getStep = d => (STATUS_CONFIG[d.status] || {step:0}).step;
               const getGroup = d => { const s = getStep(d); return s >= 4 ? 4 : s; };
@@ -750,14 +758,14 @@ const ConsumerDashboard = () => {
             <div className="cd-products-toolbar">
               <div className="cd-pt-left">
                 <h3 className="cd-pt-title">
-                  {selectedCategory==='all' ? 'All Products' : (categories.find(c=>c.id===selectedCategory)?.name ?? 'Products')}
+                  {selectedCategory==='all' ? t('cd_all_products','All Products') : (categories.find(c=>c.id===selectedCategory)?.name ?? t('cd_all_products','Products'))}
                 </h3>
-                <span className="cd-pt-count">{filteredProducts.length} items</span>
-                {organicOnly && <span className="cd-pt-tag cd-pt-tag--organic"><FaLeaf /> Organic Only</span>}
+                <span className="cd-pt-count">{filteredProducts.length} {t('cd_items','items')}</span>
+                {organicOnly && <span className="cd-pt-tag cd-pt-tag--organic"><FaLeaf /> {t('cd_organic_only','Organic Only')}</span>}
               </div>
               <div className="cd-pt-right">
                 <div className="cd-pt-search">
-                  <SearchBar searchTerm={searchTerm} onSearchChange={setSearchTerm} placeholder="Filter results..." />
+                  <SearchBar searchTerm={searchTerm} onSearchChange={setSearchTerm} placeholder={t('cd_filter_results','Filter results...')} />
                 </div>
                 <div className="cd-view-btns">
                   <button className="cd-view-btn active" title="Grid"><FaThLarge /></button>
@@ -788,9 +796,9 @@ const ConsumerDashboard = () => {
               <div className="cd-no-products">
                 <div className="cd-no-products-art"><FaLeaf style={{fontSize:48,color:'#16a34a'}}/></div>
                 {productsToUse.length === 0 ? (
-                  <><h3>No Crops Listed Yet</h3><p>Farmers haven't added crops yet -- check back soon, or request one above!</p></>
+                  <><h3>{t('cd_no_crops_title','No Crops Listed Yet')}</h3><p>{t('cd_no_crops_sub',"Farmers haven't added crops yet -- check back soon, or request one above!")}</p></>
                 ) : (
-                  <><h3>No Products Found</h3><p>Try adjusting your filters or search term.</p><button className="cd-reset-btn" onClick={resetFilters}>Reset Filters</button></>
+                  <><h3>{t('cd_no_products_title','No Products Found')}</h3><p>{t('cd_no_products_sub','Try adjusting your filters or search term.')}</p><button className="cd-reset-btn" onClick={resetFilters}>{t('cd_reset_filters','Reset Filters')}</button></>
                 )}
               </div>
             )}
@@ -810,7 +818,7 @@ const ConsumerDashboard = () => {
           {/* Brand */}
           <div className="cd-footer-brand">
             <div className="cd-footer-logo"><FaLeaf /><span>Farm2Home</span></div>
-            <p className="cd-footer-tagline">Connecting farmers and consumers for a healthier, sustainable India -- no middlemen, pure freshness.</p>
+            <p className="cd-footer-tagline">{t('cd_footer_tagline','Connecting farmers and consumers — no middlemen, pure freshness.')}</p>
 
             <div className="cd-footer-contact">
               <div className="cd-fc-row"><FaPhone className="cd-fc-icon"/><span>+91 98765 43210</span></div>
@@ -818,45 +826,45 @@ const ConsumerDashboard = () => {
             </div>
 
             <div className="cd-footer-badges">
-              <div className="cd-fb-badge"><FaShieldAlt className="cd-fb-icon"/><span>100% Secure</span></div>
-              <div className="cd-fb-badge"><FaStar className="cd-fb-icon cd-fb-star"/><span>Rated 4.8/5</span></div>
-              <div className="cd-fb-badge"><FaUsers className="cd-fb-icon"/><span>10k+ Users</span></div>
+              <div className="cd-fb-badge"><FaShieldAlt className="cd-fb-icon"/><span>{t('cd_footer_secure','100% Secure')}</span></div>
+              <div className="cd-fb-badge"><FaStar className="cd-fb-icon cd-fb-star"/><span>{t('cd_footer_rated','Rated 4.8/5')}</span></div>
+              <div className="cd-fb-badge"><FaUsers className="cd-fb-icon"/><span>{t('cd_footer_users','10k+ Users')}</span></div>
             </div>
           </div>
 
           {/* Shop */}
           <div className="cd-footer-col">
-            <h4><FaLeaf className="cd-fcol-icon"/> Shop</h4>
+            <h4><FaLeaf className="cd-fcol-icon"/> {t('cd_footer_shop','Shop')}</h4>
             <ul>
-              <li><a href="#vegetables"><FaChevronRight className="cd-flink-arr"/>Vegetables</a></li>
-              <li><a href="#fruits"><FaChevronRight className="cd-flink-arr"/>Fruits</a></li>
-              <li><a href="#grains"><FaChevronRight className="cd-flink-arr"/>Grains &amp; Pulses</a></li>
-              <li><a href="#spices"><FaChevronRight className="cd-flink-arr"/>Spices</a></li>
-              <li><a href="#organic"><FaChevronRight className="cd-flink-arr"/>Organic</a></li>
+              <li><a href="#vegetables"><FaChevronRight className="cd-flink-arr"/>{t('cd_footer_vegetables','Vegetables')}</a></li>
+              <li><a href="#fruits"><FaChevronRight className="cd-flink-arr"/>{t('cd_footer_fruits','Fruits')}</a></li>
+              <li><a href="#grains"><FaChevronRight className="cd-flink-arr"/>{t('cd_footer_grains','Grains & Pulses')}</a></li>
+              <li><a href="#spices"><FaChevronRight className="cd-flink-arr"/>{t('cd_footer_spices','Spices')}</a></li>
+              <li><a href="#organic"><FaChevronRight className="cd-flink-arr"/>{t('cd_footer_organic','Organic')}</a></li>
             </ul>
           </div>
 
           {/* Company */}
           <div className="cd-footer-col">
-            <h4><FaHandshake className="cd-fcol-icon"/> Company</h4>
+            <h4><FaHandshake className="cd-fcol-icon"/> {t('cd_footer_company','Company')}</h4>
             <ul>
-              <li><a href="#about"><FaChevronRight className="cd-flink-arr"/>About Us</a></li>
-              <li><a href="#farmers"><FaChevronRight className="cd-flink-arr"/>Our Farmers</a></li>
-              <li><a href="#careers"><FaChevronRight className="cd-flink-arr"/>Careers</a></li>
-              <li><a href="#blog"><FaChevronRight className="cd-flink-arr"/>Blog</a></li>
-              <li><a href="#contact"><FaChevronRight className="cd-flink-arr"/>Contact</a></li>
+              <li><a href="#about"><FaChevronRight className="cd-flink-arr"/>{t('cd_footer_about','About Us')}</a></li>
+              <li><a href="#farmers"><FaChevronRight className="cd-flink-arr"/>{t('cd_footer_our_farmers','Our Farmers')}</a></li>
+              <li><a href="#careers"><FaChevronRight className="cd-flink-arr"/>{t('cd_footer_careers','Careers')}</a></li>
+              <li><a href="#blog"><FaChevronRight className="cd-flink-arr"/>{t('cd_footer_blog','Blog')}</a></li>
+              <li><a href="#contact"><FaChevronRight className="cd-flink-arr"/>{t('cd_footer_contact','Contact')}</a></li>
             </ul>
           </div>
 
           {/* Support */}
           <div className="cd-footer-col">
-            <h4><FaShieldAlt className="cd-fcol-icon"/> Support</h4>
+            <h4><FaShieldAlt className="cd-fcol-icon"/> {t('cd_footer_support','Support')}</h4>
             <ul>
-              <li><a href="#faq"><FaChevronRight className="cd-flink-arr"/>FAQ</a></li>
-              <li><a href="#shipping"><FaChevronRight className="cd-flink-arr"/>Shipping Policy</a></li>
-              <li><a href="#returns"><FaChevronRight className="cd-flink-arr"/>Returns</a></li>
-              <li><a href="#privacy"><FaChevronRight className="cd-flink-arr"/>Privacy Policy</a></li>
-              <li><a href="#terms"><FaChevronRight className="cd-flink-arr"/>Terms of Service</a></li>
+              <li><a href="#faq"><FaChevronRight className="cd-flink-arr"/>{t('cd_footer_faq','FAQ')}</a></li>
+              <li><a href="#shipping"><FaChevronRight className="cd-flink-arr"/>{t('cd_footer_shipping','Shipping Policy')}</a></li>
+              <li><a href="#returns"><FaChevronRight className="cd-flink-arr"/>{t('cd_footer_returns','Returns')}</a></li>
+              <li><a href="#privacy"><FaChevronRight className="cd-flink-arr"/>{t('cd_footer_privacy','Privacy Policy')}</a></li>
+              <li><a href="#terms"><FaChevronRight className="cd-flink-arr"/>{t('cd_footer_terms','Terms of Service')}</a></li>
             </ul>
           </div>
 
@@ -864,13 +872,13 @@ const ConsumerDashboard = () => {
 
         {/* Bottom bar */}
         <div className="cd-footer-bottom">
-          <p className="cd-fb-copy">&copy; 2026 Farm2Home. All rights reserved.</p>
+          <p className="cd-fb-copy">{t('cd_footer_copy','© 2026 Farm2Home. All rights reserved.')}</p>
           <div className="cd-fb-links">
-            <a href="#privacy">Privacy</a>
+            <a href="#privacy">{t('cd_footer_privacy_link','Privacy')}</a>
             <span className="cd-fb-dot"></span>
-            <a href="#terms">Terms</a>
+            <a href="#terms">{t('cd_footer_terms_link','Terms')}</a>
             <span className="cd-fb-dot"></span>
-            <a href="#sitemap">Sitemap</a>
+            <a href="#sitemap">{t('cd_footer_sitemap','Sitemap')}</a>
           </div>
         </div>
 
