@@ -101,6 +101,7 @@ const Navbar = React.memo(({
 
   const changeLanguage = useCallback((lng) => {
     i18n.changeLanguage(lng);
+    localStorage.setItem('selectedLanguage', lng);
   }, [i18n]);
 
   return (

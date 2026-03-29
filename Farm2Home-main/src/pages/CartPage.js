@@ -1,16 +1,40 @@
-import { useState } from 'react'
+import { useState, useEffect, useMemo, useCallback } from 'react'
+import { collection, addDoc, serverTimestamp } from 'firebase/firestore'
+import { FaCheckCircle, FaTruck, FaShoppingBag, FaShieldAlt, FaPlus, FaMinus, FaTrash, FaRegHeart, FaArrowLeft, FaShoppingCart, FaMapMarkerAlt, FaReceipt, FaSpinner } from 'react-icons/fa'
+import { GiCarrot, GiCoolSpices, GiGrain, GiFruitTree, GiGreenhouse } from 'react-icons/gi'
+import { useCart } from '../features/consumer/hooks/useCart'
+import { findCropByKeyword } from '../data/cropData'
 import { useNavigate } from 'react-router-dom'
 import { useTranslation } from 'react-i18next'
 import { useToast } from '../context/ToastContext'
-import Navbar from '../components/Navbar'
-import { FaShoppingCart, FaTrash, FaPlus, FaMinus, FaCheckCircle, FaHandshake } from 'react-icons/fa'
-import { useCart } from '../features/consumer/hooks/useCart'
 import { auth, db } from '../firebase'
-import { collection, addDoc, serverTimestamp } from 'firebase/firestore'
+import './CartPage.css'
 
 const CartPage = () => {
-  const { cartItems, removeFromCart, updateQuantity: updateQty, clearCart } = useCart()
+  const { 
+    cartItems, 
+    removeFromCart, 
+    updateQuantity, 
+    updateItemStatus,
+    clearCart 
+  } = useCart()
+  const navigate = useNavigate()
+  const { t } = useTranslation()
+  const { success, error, warning } = useToast()
+  
   const [checkoutStep, setCheckoutStep] = useState('cart') // 'cart', 'address', 'confirmation'
+  const [loading, setLoading] = useState(false)
+  const [batchOrderId, setBatchOrderId] = useState(null)
+  const [activeItems, setActiveItems] = useState([])
+  const [savedItems, setSavedItems] = useState([])
+  const [checkoutItems, setCheckoutItems] = useState([]) // To support single item checkout
+
+  // Local state for snappy UI updates before Firestore syncs
+  useEffect(() => {
+    setActiveItems(cartItems.filter(i => i.status !== 'saved'))
+    setSavedItems(cartItems.filter(i => i.status === 'saved'))
+  }, [cartItems])
+
   const [deliveryAddress, setDeliveryAddress] = useState({
     fullName: '',
     phone: '',
@@ -19,63 +43,84 @@ const CartPage = () => {
     state: '',
     pincode: ''
   })
-  const [batchOrderId, setBatchOrderId] = useState(null)
-  const [loading, setLoading] = useState(false)
-  const navigate = useNavigate()
-  const { t } = useTranslation()
-  const { success: toastSuccess, error: toastError, warning: toastWarning } = useToast()
 
-  const updateQuantity = (item, change) => {
-    const newQuantity = (parseInt(item.quantity) || 1) + change
-    const itemId = item.id || item.firestoreId
-    if (!itemId) return
-    if (newQuantity > 0) updateQty(itemId, newQuantity)
-    else removeFromCart(itemId)
-  }
+  // Synchronize Navbar badge by calculating sum of quantities
+  const totalQuantity = useMemo(() => {
+    return activeItems.reduce((acc, item) => acc + (parseInt(item.quantity) || 1), 0)
+  }, [activeItems])
 
-  const removeItem = (item) => {
-    const itemId = item.id || item.firestoreId
-    if (!itemId) return
-    removeFromCart(itemId)
-  }
+  const calculateTotal = useCallback(() => {
+    const target = checkoutStep === 'cart' ? activeItems : checkoutItems
+    return target.reduce((acc, item) => acc + (parseFloat(item.pricePerKg || item.price || 0) * (parseInt(item.quantity) || 1)), 0)
+  }, [activeItems, checkoutItems, checkoutStep])
 
-  const calculateTotal = () => {
-    return cartItems.reduce((total, item) => {
-      const price = parseFloat(item.pricePerKg || item.price) || 0
-      const quantity = parseInt(item.quantity) || 1
-      return total + (price * quantity)
-    }, 0)
-  }
+  const calculateDeliveryCharge = useCallback(() => {
+    return calculateTotal() > 500 ? 0 : 40
+  }, [calculateTotal])
 
-  const calculateDeliveryCharge = () => {
-    const total = calculateTotal()
-    return total > 500 ? 0 : 40
-  }
-
-  const calculateGrandTotal = () => {
+  const calculateGrandTotal = useCallback(() => {
     return calculateTotal() + calculateDeliveryCharge()
-  }
+  }, [calculateTotal, calculateDeliveryCharge])
 
   const generateOrderId = () => {
     return 'ORD' + Date.now() + Math.floor(Math.random() * 1000)
   }
 
-  const proceedToAddress = () => {
-    if (cartItems.length === 0) {
-      toastWarning(t('cart_empty') || 'Your cart is empty!')
+  const handleQtyChange = async (item, delta) => {
+    const currentQty = parseInt(item.quantity) || 1
+    const newQty = Math.max(0, currentQty + delta)
+    console.log(`[Cart] Changing Qty for ${item.id}: ${currentQty} -> ${newQty}`)
+    
+    if (newQty === 0) {
+      console.log(`[Cart] Removing ${item.id} due to zero qty`)
+      await removeFromCart(item.id)
       return
     }
+    
+    // Optimistic UI for immediate feedback
+    setActiveItems(prev => prev.map(i => i.id === item.id ? { ...i, quantity: newQty } : i))
+    
+    try {
+      await updateQuantity(item.id, newQty)
+      // Immediate Navbar sync is handled by useCart dispatching the event
+    } catch (err) {
+      console.error('[Cart] Qty update fail:', err)
+      setActiveItems(cartItems.filter(i => i.status !== 'saved'))
+      error(t('update_failed', 'Failed to update quantity'))
+    }
+  }
+
+  const handleToggleSaved = async (item, status) => {
+    setLoading(true)
+    try {
+      await updateItemStatus(item.id, status)
+      success(status === 'saved' ? t('cart_move_to_saved', 'Moved to Saved') : t('cart_move_to_bag', 'Moved to Bag'))
+    } catch (err) {
+      error(t('error', 'An error occurred'))
+    } finally {
+      setLoading(false)
+    }
+  }
+
+  const proceedToAddress = (items = null) => {
+    const target = items || activeItems
+    if (target.length === 0) {
+      warning(t('cart_empty', 'Your cart is empty!'))
+      return
+    }
+    setCheckoutItems(target)
     setCheckoutStep('address')
+    window.scrollTo({ top: 0, behavior: 'smooth' })
   }
 
   const validateAndPlaceOrder = () => {
     if (!deliveryAddress.fullName || !deliveryAddress.phone || !deliveryAddress.addressLine ||
         !deliveryAddress.city || !deliveryAddress.state || !deliveryAddress.pincode) {
-      toastWarning(t('fill_address') || 'Please fill all address fields')
+      warning(t('fill_address', 'Please fill all address fields'))
       return
     }
     if (deliveryAddress.phone.length !== 10) {
-      toastWarning(t('valid_phone') || 'Please enter a valid 10-digit phone number')
+      warning(t('valid_phone') || 'Please enter a valid 10-digit phone number')
       return
     }
     placeOrder()
@@ -86,608 +131,308 @@ const CartPage = () => {
     try {
       const user = auth.currentUser
       if (!user) {
-        toastWarning(t('please_sign_in_to_place_order'))
+        warning(t('please_sign_in_to_place_order'))
         setLoading(false)
         return
       }
 
-      const sharedBatchId = generateOrderId()
+      const orderId = generateOrderId()
+      const batchOrder = {
+        orderId,
+        customerId: user.uid,
+        items: checkoutItems.map(i => ({ ...i, firestoreId: i.id })),
+        address: deliveryAddress,
+        total: calculateGrandTotal(),
+        status: 'Confirmed',
+        createdAt: serverTimestamp()
+      }
 
-      // Create one Firestore order per cart item (consistent with Buy Now flow)
-      await Promise.all(
-        cartItems.map(item => {
-          const price = item.pricePerKg || item.price || 0
-          const qty   = parseInt(item.quantity) || 1
-          return addDoc(collection(db, 'orders'), {
-            customerId:      user.uid,
-            farmerId:        item.farmerId || '',
-            cropName:        item.name || item.cropName || item.crop || 'Product',
-            quantity:        qty,
-            pricePerKg:      price,
-            totalPrice:      price * qty,
-            totalAmount:     price * qty,
-            unit:            item.unit || 'kg',
-            shippingAddress: deliveryAddress,
-            paymentMethod:   'direct',
-            status:          'pending',
-            batchOrderId:    sharedBatchId,
-            createdAt:       serverTimestamp(),
-          })
-        })
-      )
+      await addDoc(collection(db, 'batch_orders'), batchOrder)
+      
+      for (const item of checkoutItems) {
+        await removeFromCart(item.id)
+      }
 
-      await clearCart()
-      setBatchOrderId(sharedBatchId)
+      setBatchOrderId(orderId)
       setCheckoutStep('confirmation')
-    } catch (error) {
-      console.error('placeOrder error:', error)
-      toastError(t('order_failed') || 'Failed to place order. Please try again.')
+    } catch (err) {
+      console.error('placeOrder error:', err)
+      error(t('order_failed'))
     } finally {
       setLoading(false)
     }
   }
 
-  // Cart View
-  const renderCart = () => (
-    <div style={cartContainer}>
-      <h2 style={heading}>
-        <FaShoppingCart /> {t('cart') || 'My Cart'} ({cartItems.length})
-      </h2>
+  const renderStepper = () => (
+    <div className="progress-stepper">
+      <div className={`step-item ${checkoutStep === 'cart' || checkoutStep === 'address' || checkoutStep === 'confirmation' ? 'active' : ''}`}>
+        <div className="step-num">1</div>
+        <span>{t('cart')}</span>
+      </div>
+      <div className={`step-line ${checkoutStep === 'address' || checkoutStep === 'confirmation' ? 'active' : ''}`}></div>
+      <div className={`step-item ${checkoutStep === 'address' || checkoutStep === 'confirmation' ? 'active' : ''}`}>
+        <div className="step-num">2</div>
+        <span>{t('address')}</span>
+      </div>
+      <div className={`step-line ${checkoutStep === 'confirmation' ? 'active' : ''}`}></div>
+      <div className={`step-item ${checkoutStep === 'confirmation' ? 'active' : ''}`}>
+        <div className="step-num">3</div>
+        <span>{t('confirmation')}</span>
+      </div>
+    </div>
+  )
 
-      {cartItems.length === 0 ? (
-        <div style={emptyCart}>
-          <FaShoppingCart size={64} color="#ddd" />
-          <p style={emptyText}>{t('cart_empty') || 'Your cart is empty'}</p>
-          <button onClick={() => navigate('/consumer')} style={continueBtn}>
-            {t('continue_shopping') || 'Continue Shopping'}
-          </button>
-        </div>
-      ) : (
-        <div style={cartContent}>
-          <div style={itemsSection}>
-                  {cartItems.map((item, index) => {
-                    const itemId = item.id || item.firestoreId || index
-                    return (
-                    <div key={itemId} style={cartItem}>
-                <div style={itemDetails}>
-                  <h3 style={itemName}>{item.name || item.cropName || item.crop}</h3>
-                  <p style={itemPrice}>₹{item.pricePerKg || item.price} / {item.unit || 'kg'}</p>
-                </div>
-                <div style={quantityControls}>
-                      <button onClick={() => updateQuantity(item, -1)} style={qtyBtn} disabled={loading}>
-                    <FaMinus />
-                  </button>
-                      <span style={qtyDisplay}>{item.quantity || 1} {item.unit || 'kg'}</span>
-                      <button onClick={() => updateQuantity(item, 1)} style={qtyBtn} disabled={loading}>
-                    <FaPlus />
-                  </button>
-                </div>
-                <div style={itemTotal}>
-                  <p style={totalPrice}>₹{(parseFloat(item.pricePerKg || item.price) * (parseInt(item.quantity) || 1)).toFixed(2)}</p>
-                      <button onClick={() => removeItem(item)} style={removeBtn} disabled={loading}>
-                    <FaTrash /> {t('remove') || 'Remove'}
-                  </button>
-                </div>
-                  </div>
-                    )
-                  })}
-          </div>
+  const getProductIcon = (name) => {
+    const entry = (name || '').toLowerCase()
+    if (entry.includes('carrot') || entry.includes('veg')) return <GiCarrot />
+    if (entry.includes('spice')) return <GiCoolSpices />
+    if (entry.includes('rice') || entry.includes('wheat')) return <GiGrain />
+    if (entry.includes('fruit') || entry.includes('apple')) return <GiFruitTree />
+    return <GiGreenhouse />
+  }
 
-          <div style={summarySection}>
-            <h3 style={summaryHeading}>{t('order_summary') || 'Order Summary'}</h3>
-            <div style={summaryRow}>
-              <span>{t('subtotal') || 'Subtotal'}:</span>
-              <span>₹{calculateTotal().toFixed(2)}</span>
-            </div>
-            <div style={summaryRow}>
-              <span>{t('delivery') || 'Delivery Charge'}:</span>
-              <span>{calculateDeliveryCharge() === 0 ? t('free') || 'FREE' : `₹${calculateDeliveryCharge()}`}</span>
-            </div>
-            {calculateDeliveryCharge() > 0 && (
-              <p style={deliveryNote}>{t('free_delivery_note') || 'Free delivery on orders above ₹500'}</p>
-            )}
-            <div style={summaryTotal}>
-              <strong>{t('total') || 'Total'}:</strong>
-              <strong>₹{calculateGrandTotal().toFixed(2)}</strong>
-            </div>
-            <button
-              onClick={proceedToAddress}
-              style={checkoutBtn}
-            >
-              {t('proceed_checkout') || 'Proceed to Checkout'}
+  const renderCart = () => {
+    const totalItems = activeItems.length
+    const rawTotal = calculateTotal()
+    const originalTotal = rawTotal * 1.25
+    const savings = originalTotal - rawTotal
+
+    return (
+      <div className="cart-content-wrapper">
+        {renderStepper()}
+        {totalItems === 0 && savedItems.length === 0 ? (
+          <div className="empty-view" style={{ textAlign: 'center', padding: '100px 20px' }}>
+            <FaShoppingBag size={120} color="#e5e7eb" />
+            <h3 style={{ fontSize: '24px', fontWeight: 600, margin: '20px 0 10px' }}>{t('cart_empty')}</h3>
+            <button onClick={() => navigate('/consumer')} className="place-order-btn-full" style={{ maxWidth: 300, margin: '30px auto' }}>
+              {t('shop_now', 'Explore Marketplace')}
             </button>
           </div>
-        </div>
-      )}
-    </div>
-  )
+        ) : (
+          <div className="cart-grid">
+            <div className="cart-items-panel">
+              {totalItems > 0 ? (
+                <>
+                  <div className="billing-head" style={{ marginBottom: '25px' }}>
+                    {t('cart_title')} ({totalQuantity} {t('cd_items')})
+                  </div>
+                  
+                  {activeItems.map((item, index) => {
+                    const itemId = item.id || index
+                    const unitPrice = parseFloat(item.pricePerKg || item.price) || 0
+                    const quantity = parseInt(item.quantity) || 1
+                    const itemTotal = unitPrice * quantity
+                    const farmer = item.farmerName || t('local_farmer')
+                    const unit = item.unit || 'kg'
+                    const cropMatch = findCropByKeyword(item.name || item.cropName || '')
+                    const img = cropMatch?.image || item.photoURL || item.image
 
-  // Address View
+                    return (
+                      <div key={itemId} className="cart-item-modern">
+                        <div className="item-visual">
+                          <div className="item-img-frame">
+                            {img ? <img src={img} alt={item.name} /> : <div className="placeholder-icon">{getProductIcon(item.name || item.cropName)}</div>}
+                          </div>
+                          <div className="modern-qty-pod">
+                            <button onClick={() => handleQtyChange(item, -1)} className="qty-btn-minimal" disabled={loading}><FaMinus /></button>
+                            <span className="qty-display">{quantity}</span>
+                            <button onClick={() => handleQtyChange(item, 1)} className="qty-btn-minimal" disabled={loading}><FaPlus /></button>
+                          </div>
+                        </div>
+                        
+                        <div className="item-copy">
+                          <h3 style={{ color: '#2563eb' }}>{item.name || item.cropName || item.crop}</h3>
+                          <div className="meta-info">
+                            <div style={{ marginBottom: '4px' }}>
+                               <span className="meta-label">{t('farmer_name')}: </span> 
+                               <span className="meta-value" style={{ fontWeight: 700, color: '#1e293b' }}>{farmer}</span>
+                            </div>
+                            <div><span className="meta-label">{t('quantity')}: </span> <span className="meta-unit">{unit}</span></div>
+                          </div>
+                          <div className="pricing">
+                            <span className="price-main">₹{itemTotal.toFixed(0)}</span>
+                            <span className="price-strike">₹{(itemTotal * 1.25).toFixed(0)}</span>
+                            <span className="price-off">25% {t('off', 'OFF')}</span>
+                          </div>
+                          <div style={{ borderTop: '1px solid #f1f5f9', marginTop: '15px', paddingTop: '15px', display: 'flex', gap: '20px', alignItems: 'center' }}>
+                            <button onClick={() => proceedToAddress([item])} className="buy-individual-btn">
+                              {t('cart_buy_btn')}
+                            </button>
+                            <button onClick={() => removeFromCart(item.id)} style={{ background: 'none', border: 'none', color: '#ef4444', fontSize: '13px', fontWeight: 700, cursor: 'pointer', display: 'flex', alignItems: 'center', gap: '5px' }}>
+                              <FaTrash size={10} /> {t('cart_remove_btn')}
+                            </button>
+                            <button 
+                              onClick={() => {
+                                handleToggleSaved(item, 'saved')
+                              }} 
+                              style={{ background: 'none', border: 'none', color: '#64748b', fontSize: '13px', fontWeight: 700, cursor: 'pointer', display: 'flex', alignItems: 'center', gap: '5px' }}
+                            >
+                              <FaRegHeart size={10} /> {t('cart_save_btn')}
+                            </button>
+                          </div>
+                        </div>
+                        <div style={{ textAlign: 'right' }}>
+                            <div className="meta-label" style={{fontSize: '11px', textTransform: 'uppercase'}}>{t('unit_price')}</div>
+                            <div style={{ fontSize: '18px', fontWeight: 800 }}>₹{unitPrice}</div>
+                        </div>
+                      </div>
+                    )
+                  })}
+                </>
+              ) : (
+                <div style={{ background: 'white', padding: '40px', borderRadius: '16px', textAlign: 'center', border: '1px solid #f1f5f9' }}>
+                  <FaShoppingCart size={40} color="#e2e8f0" style={{ marginBottom: '15px' }} />
+                  <p style={{ color: '#64748b', fontWeight: 600 }}>{t('basket_is_empty')}</p>
+                </div>
+              )}
+
+              {savedItems.length > 0 && (
+                <div className="saved-section">
+                   <div className="saved-head"><FaRegHeart color="#ec4899" /> {t('saved_for_later')} ({savedItems.length})</div>
+                   {savedItems.map((item) => (
+                      <div key={item.id} className="cart-item-modern saved">
+                        <div className="item-visual">
+                          <div className="item-img-frame">
+                            <img src={findCropByKeyword(item.name)?.image || item.photoURL} alt={item.name} />
+                          </div>
+                        </div>
+                        <div className="item-copy">
+                          <h3>{item.name}</h3>
+                          <div className="meta-info">
+                            <span className="meta-value">₹{item.pricePerKg || item.price} / {item.unit}</span>
+                          </div>
+                          <div style={{ marginTop: '15px', display: 'flex', gap: '20px' }}>
+                            <button onClick={() => handleToggleSaved(item, 'active')} className="place-order-btn-full" style={{ padding: '8px 20px', fontSize: '12px', width: 'auto', marginTop: 0 }}>
+                              {t('cart_move_to_bag')}
+                            </button>
+                            <button onClick={() => removeFromCart(item.id)} style={{ background: 'none', border: 'none', color: '#64748b', fontSize: '12px', fontWeight: 600, cursor: 'pointer' }}>
+                              {t('cart_remove_btn')}
+                            </button>
+                          </div>
+                        </div>
+                      </div>
+                   ))}
+                </div>
+              )}
+            </div>
+
+            <div className="billing-card">
+              <div className="billing-head">{t('cart_billing_summary')}</div>
+              <div className="bill-line">
+                <span className="bill-label">{t('cart_item_count')}</span>
+                <span className="bill-val">{totalQuantity} {t('cd_items')}</span>
+              </div>
+              <div className="bill-line">
+                <span className="bill-label">{t('cart_gross')}</span>
+                <span className="bill-val strike">₹{originalTotal.toFixed(0)}</span>
+              </div>
+              <div className="bill-line">
+                <span className="bill-label">{t('cart_savings')}</span>
+                <span className="bill-val green">- ₹{savings.toFixed(0)}</span>
+              </div>
+              <div className="bill-line">
+                <span className="bill-label">{t('cart_shipping')}</span>
+                <span className="bill-val green">{calculateDeliveryCharge() === 0 ? t('free') : `₹${calculateDeliveryCharge()}`}</span>
+              </div>
+              
+              <div className="bill-total-row">
+                <span>{t('cart_total')}</span>
+                <span>₹{calculateGrandTotal().toFixed(0)}</span>
+              </div>
+              
+              <div style={{ background: '#f0fdf4', padding: '12px', borderRadius: '10px', color: '#059669', fontSize: '13px', fontWeight: 700, textAlign: 'center', marginTop: '20px', border: '1px solid #dcfce7' }}>
+                 🌟 {t('cart_savings_summary')}: ₹{savings.toFixed(0)} 🌟
+              </div>
+
+              <button onClick={() => proceedToAddress()} className="place-order-btn-full" disabled={totalItems === 0}>
+                {t('place_order')}
+              </button>
+              
+              <div style={{ background: '#f8fafc', padding: '15px', borderRadius: '10px', marginTop: '20px', display: 'flex', alignItems: 'center', gap: '10px', fontSize: '11px', color: '#64748b' }}>
+                <FaShieldAlt color="#059669" /> {t('cart_secure_msg')}
+              </div>
+            </div>
+          </div>
+        )}
+      </div>
+    )
+  }
+
   const renderAddress = () => (
-    <div style={addressContainer}>
-      <h2 style={heading}>{t('delivery_address') || 'Delivery Address'}</h2>
-      <div style={formContainer}>
-        <div style={formRow}>
-          <input
-            type="text"
-            placeholder={t('full_name') || 'Full Name'}
-            value={deliveryAddress.fullName}
-            onChange={(e) => setDeliveryAddress({...deliveryAddress, fullName: e.target.value})}
-            style={input}
-          />
-          <input
-            type="tel"
-            placeholder={t('phone') || 'Phone Number'}
-            value={deliveryAddress.phone}
-            onChange={(e) => setDeliveryAddress({...deliveryAddress, phone: e.target.value})}
-            style={input}
-            maxLength="10"
-          />
-        </div>
-        <input
-          type="text"
-          placeholder={t('address_line') || 'Address Line (House No., Street)'}
-          value={deliveryAddress.addressLine}
-          onChange={(e) => setDeliveryAddress({...deliveryAddress, addressLine: e.target.value})}
-          style={inputFull}
-        />
-        <div style={formRow}>
-          <input
-            type="text"
-            placeholder={t('city') || 'City'}
-            value={deliveryAddress.city}
-            onChange={(e) => setDeliveryAddress({...deliveryAddress, city: e.target.value})}
-            style={input}
-          />
-          <input
-            type="text"
-            placeholder={t('state') || 'State'}
-            value={deliveryAddress.state}
-            onChange={(e) => setDeliveryAddress({...deliveryAddress, state: e.target.value})}
-            style={input}
-          />
-        </div>
-        <input
-          type="text"
-          placeholder={t('pincode') || 'Pincode'}
-          value={deliveryAddress.pincode}
-          onChange={(e) => setDeliveryAddress({...deliveryAddress, pincode: e.target.value})}
-          style={input}
-          maxLength="6"
-        />
-        <div style={btnGroup}>
-          <button onClick={() => setCheckoutStep('cart')} style={backBtn}>
-            {t('back') || 'Back'}
-          </button>
-          <button onClick={validateAndPlaceOrder} style={continueBtn} disabled={loading}>
-            {loading ? (t('processing') || 'Placing Order...') : (t('place_order') || 'Place Order')}
-          </button>
-        </div>
+    <div className="cart-content-wrapper">
+      {renderStepper()}
+      <div className="address-layout">
+          <div className="billing-head" style={{ marginBottom: '30px' }}>
+            <FaMapMarkerAlt /> {t('shipping_info', 'Secure Checkout: Shipping Information')}
+          </div>
+          <div className="address-grid">
+              <div className="field-group">
+                <label>{t('full_name')}</label>
+                <input type="text" className="field-input" placeholder="Full Name" value={deliveryAddress.fullName} onChange={(e) => setDeliveryAddress({...deliveryAddress, fullName: e.target.value})} />
+              </div>
+              <div className="field-group">
+                <label>{t('phone_number')}</label>
+                <input type="tel" className="field-input" placeholder="Contact number" value={deliveryAddress.phone} onChange={(e) => setDeliveryAddress({...deliveryAddress, phone: e.target.value})} maxLength="10" />
+              </div>
+          </div>
+          <div className="field-group">
+            <label>{t('detailed_address', 'Apartment, Street, Area')}</label>
+            <textarea className="field-input" style={{ minHeight: '100px', resize: 'none' }} placeholder="Full delivery address" value={deliveryAddress.addressLine} onChange={(e) => setDeliveryAddress({...deliveryAddress, addressLine: e.target.value})} />
+          </div>
+          <div className="address-grid">
+              <div className="field-group">
+                <label>{t('city')}</label>
+                <input type="text" className="field-input" placeholder="City" value={deliveryAddress.city} onChange={(e) => setDeliveryAddress({...deliveryAddress, city: e.target.value})} />
+              </div>
+              <div className="field-group">
+                <label>{t('state')}</label>
+                <input type="text" className="field-input" placeholder="State/Region" value={deliveryAddress.state} onChange={(e) => setDeliveryAddress({...deliveryAddress, state: e.target.value})} />
+              </div>
+              <div className="field-group">
+                <label>{t('pincode')}</label>
+                <input type="text" className="field-input" placeholder="6-digit Pin" value={deliveryAddress.pincode} onChange={(e) => setDeliveryAddress({...deliveryAddress, pincode: e.target.value})} maxLength="6" />
+              </div>
+          </div>
+          <div style={{ display: 'flex', gap: '15px', marginTop: '40px' }}>
+              <button onClick={() => setCheckoutStep('cart')} className="place-order-btn-full" style={{ background: '#f1f5f9', color: '#1e293b', boxShadow: 'none' }}>
+                <FaArrowLeft /> {t('back')}
+              </button>
+              <button onClick={validateAndPlaceOrder} className="place-order-btn-full">
+                <FaCheckCircle /> {t('place_order', 'Place Order')}
+              </button>
+          </div>
       </div>
     </div>
   )
 
-  // Payment step removed — direct settlement outside the app
-
-  // Confirmation View
   const renderConfirmation = () => (
-    <div style={confirmationContainer}>
-      <div style={successIcon}>
-        <FaCheckCircle size={80} color="#28a745" />
-      </div>
-      <h2 style={successHeading}>{t('order_placed') || 'Order Placed Successfully!'}</h2>
-      <p style={orderIdText}>{t('order_id') || 'Order ID'}: <strong>#{batchOrderId}</strong></p>
-      <div style={confirmationBox}>
-        <p style={{ display: 'flex', alignItems: 'center', gap: 6 }}><FaHandshake color="#28a745" /> <strong>Payment:</strong> Settle directly with the farmer</p>
-        <p><strong>{t('total_amount') || 'Total Amount'}:</strong> ₹{calculateGrandTotal().toFixed(2)}</p>
-        <p><strong>{t('delivery_to') || 'Delivering to'}:</strong> {deliveryAddress.fullName}</p>
-        <p>{deliveryAddress.addressLine}, {deliveryAddress.city}</p>
-        <p>{deliveryAddress.state} - {deliveryAddress.pincode}</p>
-        <p style={estimatedText}>{t('estimated_delivery') || 'Estimated Delivery'}: 3-5 {t('days') || 'days'}</p>
-      </div>
-      <div style={btnGroup}>
-        <button onClick={() => navigate('/orders')} style={viewOrdersBtn}>
-          {t('view_orders') || 'View My Orders'}
-        </button>
-        <button onClick={() => navigate('/consumer')} style={continueBtn}>
-          {t('continue_shopping') || 'Continue Shopping'}
-        </button>
+    <div className="cart-content-wrapper">
+      {renderStepper()}
+      <div className="address-layout" style={{ textAlign: 'center', padding: '80px 40px' }}>
+          <div style={{ background: '#f0fdf4', width: '100px', height: '100px', borderRadius: '50%', display: 'flex', alignItems: 'center', justifyContent: 'center', margin: '0 auto 30px' }}>
+            <FaCheckCircle size={50} color="#059669" />
+          </div>
+          <h2 style={{ fontSize: '32px', fontWeight: 800, color: '#1e293b' }}>{t('cart_order_success')}</h2>
+          <p style={{ color: '#64748b', fontSize: '18px', margin: '20px 0 40px' }}>#{batchOrderId}</p>
+          <div style={{ display: 'flex', gap: '20px', justifyContent: 'center' }}>
+              <button onClick={() => navigate('/orders')} className="place-order-btn-full" style={{ maxWidth: 220, background: '#f1f5f9', color: '#1e293b', boxShadow: 'none' }}>
+                <FaReceipt /> {t('cart_view_orders')}
+              </button>
+              <button onClick={() => navigate('/consumer')} className="place-order-btn-full" style={{ maxWidth: 220 }}>
+                {t('cart_continue')}
+              </button>
+          </div>
       </div>
     </div>
   )
 
   return (
-    <div style={container}>
-      <Navbar />
-      <div style={progressBar}>
-        <div style={checkoutStep === 'cart' ? activeStep : step}>
-          <div style={stepNumber}>1</div>
-          <span>{t('cart') || 'Cart'}</span>
-        </div>
-        <div style={stepLine(checkoutStep !== 'cart')} />
-        <div style={['address', 'confirmation'].includes(checkoutStep) ? activeStep : step}>
-          <div style={stepNumber}>2</div>
-          <span>{t('address') || 'Address'}</span>
-        </div>
-        <div style={stepLine(checkoutStep === 'confirmation')} />
-        <div style={checkoutStep === 'confirmation' ? activeStep : step}>
-          <div style={stepNumber}>3</div>
-          <span>{t('confirmation') || 'Done'}</span>
-        </div>
-      </div>
-
+    <div className="cart-page-container">
       {checkoutStep === 'cart' && renderCart()}
       {checkoutStep === 'address' && renderAddress()}
       {checkoutStep === 'confirmation' && renderConfirmation()}
     </div>
   )
 }
-
-// ✅ Styles
-const container = {
-  paddingTop: '100px',
-  backgroundColor: '#f5f5f5',
-  minHeight: '100vh',
-  padding: '24px'
-}
-
-const progressBar = {
-  display: 'flex',
-  justifyContent: 'center',
-  alignItems: 'center',
-  maxWidth: '800px',
-  margin: '0 auto 40px',
-  backgroundColor: 'white',
-  padding: '20px',
-  borderRadius: '12px',
-  boxShadow: '0 2px 8px rgba(0,0,0,0.1)'
-}
-
-const step = {
-  display: 'flex',
-  flexDirection: 'column',
-  alignItems: 'center',
-  color: '#999',
-  fontSize: '14px'
-}
-
-const activeStep = {
-  ...step,
-  color: '#28a745',
-  fontWeight: 'bold'
-}
-
-const stepNumber = {
-  width: '40px',
-  height: '40px',
-  borderRadius: '50%',
-  backgroundColor: 'currentColor',
-  color: 'white',
-  display: 'flex',
-  alignItems: 'center',
-  justifyContent: 'center',
-  marginBottom: '8px',
-  fontSize: '18px',
-  fontWeight: 'bold'
-}
-
-const stepLine = (active) => ({
-  width: '80px',
-  height: '2px',
-  backgroundColor: active ? '#28a745' : '#ddd',
-  margin: '0 10px'
-})
-
-const heading = {
-  textAlign: 'center',
-  fontSize: '28px',
-  fontWeight: 'bold',
-  marginBottom: '30px',
-  color: '#333',
-  display: 'flex',
-  alignItems: 'center',
-  justifyContent: 'center',
-  gap: '10px'
-}
-
-const cartContainer = {
-  maxWidth: '1200px',
-  margin: '0 auto'
-}
-
-const emptyCart = {
-  textAlign: 'center',
-  padding: '60px 20px',
-  backgroundColor: 'white',
-  borderRadius: '12px'
-}
-
-const emptyText = {
-  fontSize: '18px',
-  color: '#666',
-  margin: '20px 0'
-}
-
-const cartContent = {
-  display: 'grid',
-  gridTemplateColumns: '2fr 1fr',
-  gap: '20px'
-}
-
-const itemsSection = {
-  display: 'flex',
-  flexDirection: 'column',
-  gap: '16px'
-}
-
-const cartItem = {
-  backgroundColor: 'white',
-  padding: '20px',
-  borderRadius: '12px',
-  display: 'flex',
-  justifyContent: 'space-between',
-  alignItems: 'center',
-  boxShadow: '0 2px 8px rgba(0,0,0,0.1)'
-}
-
-const itemDetails = {
-  flex: 1
-}
-
-const itemName = {
-  margin: 0,
-  fontSize: '18px',
-  fontWeight: 'bold',
-  color: '#333'
-}
-
-const itemPrice = {
-  margin: '4px 0 0',
-  color: '#666'
-}
-
-const quantityControls = {
-  display: 'flex',
-  alignItems: 'center',
-  gap: '12px'
-}
-
-const qtyBtn = {
-  width: '32px',
-  height: '32px',
-  border: '1px solid #ddd',
-  borderRadius: '6px',
-  backgroundColor: 'white',
-  cursor: 'pointer',
-  display: 'flex',
-  alignItems: 'center',
-  justifyContent: 'center',
-  fontSize: '14px'
-}
-
-const qtyDisplay = {
-  fontSize: '16px',
-  fontWeight: 'bold',
-  minWidth: '60px',
-  textAlign: 'center'
-}
-
-const itemTotal = {
-  textAlign: 'right'
-}
-
-const totalPrice = {
-  fontSize: '20px',
-  fontWeight: 'bold',
-  color: '#28a745',
-  margin: '0 0 8px 0'
-}
-
-const removeBtn = {
-  color: '#dc3545',
-  border: 'none',
-  background: 'none',
-  cursor: 'pointer',
-  fontSize: '14px',
-  display: 'flex',
-  alignItems: 'center',
-  gap: '4px'
-}
-
-const summarySection = {
-  backgroundColor: 'white',
-  padding: '20px',
-  borderRadius: '12px',
-  height: 'fit-content',
-  position: 'sticky',
-  top: '120px'
-}
-
-const summaryHeading = {
-  margin: '0 0 20px 0',
-  fontSize: '20px'
-}
-
-const summaryRow = {
-  display: 'flex',
-  justifyContent: 'space-between',
-  margin: '12px 0',
-  fontSize: '16px'
-}
-
-const deliveryNote = {
-  fontSize: '12px',
-  color: '#28a745',
-  margin: '4px 0'
-}
-
-const summaryTotal = {
-  ...summaryRow,
-  fontSize: '20px',
-  paddingTop: '16px',
-  borderTop: '2px solid #eee',
-  marginTop: '16px'
-}
-
-const checkoutBtn = {
-  width: '100%',
-  padding: '14px',
-  backgroundColor: '#28a745',
-  color: 'white',
-  border: 'none',
-  borderRadius: '8px',
-  fontSize: '16px',
-  fontWeight: 'bold',
-  cursor: 'pointer',
-  marginTop: '20px'
-}
-
-const addressContainer = {
-  maxWidth: '600px',
-  margin: '0 auto',
-  backgroundColor: 'white',
-  padding: '30px',
-  borderRadius: '12px'
-}
-
-const formContainer = {
-  display: 'flex',
-  flexDirection: 'column',
-  gap: '16px'
-}
-
-const formRow = {
-  display: 'grid',
-  gridTemplateColumns: '1fr 1fr',
-  gap: '16px'
-}
-
-const input = {
-  padding: '12px',
-  border: '1px solid #ddd',
-  borderRadius: '8px',
-  fontSize: '14px'
-}
-
-const inputFull = {
-  ...input,
-  width: '100%'
-}
-
-const btnGroup = {
-  display: 'flex',
-  gap: '16px',
-  marginTop: '20px'
-}
-
-const backBtn = {
-  flex: 1,
-  padding: '12px',
-  backgroundColor: '#f0f0f0',
-  color: '#333',
-  border: 'none',
-  borderRadius: '8px',
-  fontSize: '16px',
-  fontWeight: 'bold',
-  cursor: 'pointer'
-}
-
-const continueBtn = {
-  flex: 1,
-  padding: '12px',
-  backgroundColor: '#28a745',
-  color: 'white',
-  border: 'none',
-  borderRadius: '8px',
-  fontSize: '16px',
-  fontWeight: 'bold',
-  cursor: 'pointer'
-}
-
-const paymentContainer = {
-  maxWidth: '800px',
-  margin: '0 auto'
-}
-
-const paymentOptions = {
-  display: 'grid',
-  gridTemplateColumns: 'repeat(auto-fit, minmax(200px, 1fr))',
-  gap: '20px',
-  marginBottom: '30px'
-}
-
-const paymentOption = {
-  backgroundColor: 'white',
-  padding: '24px',
-  borderRadius: '12px',
-  textAlign: 'center',
-  cursor: 'pointer',
-  border: '2px solid #eee',
-  transition: 'all 0.3s'
-}
-
-const activePaymentOption = {
-  ...paymentOption,
-  border: '2px solid #28a745',
-  backgroundColor: '#f0fff4'
-}
-
-const orderSummaryBox = {
-  backgroundColor: 'white',
-  padding: '20px',
-  borderRadius: '12px',
-  marginBottom: '20px'
-}
-
-const placeOrderBtn = {
-  ...continueBtn,
-  backgroundColor: '#28a745'
-}
-
-const confirmationContainer = {
-  maxWidth: '600px',
-  margin: '0 auto',
-  textAlign: 'center',
-  backgroundColor: 'white',
-  padding: '40px',
-  borderRadius: '12px'
-}
-
-const successIcon = {
-  marginBottom: '20px'
-}
-
-const successHeading = {
-  color: '#28a745',
-  fontSize: '28px',
-  marginBottom: '20px'
-}
-
-const orderIdText = {
-  fontSize: '18px',
-  marginBottom: '30px',
-  color: '#666'
-}
-
-const confirmationBox = {
-  backgroundColor: '#f9f9f9',
-  padding: '20px',
-  borderRadius: '8px',
-  marginBottom: '30px',
-  textAlign: 'left'
-}
-
-const estimatedText = {
-  color: '#28a745',
-  fontWeight: 'bold',
-  marginTop: '12px'
-}
-
-const viewOrdersBtn = {
-  ...continueBtn,
-  backgroundColor: '#007bff'
-}
-
-// Removed unused styles: centerBox and btn
 
 export default CartPage

@@ -4,11 +4,11 @@ import { auth, db, storage } from '../firebase';
 import { doc, getDoc, updateDoc } from 'firebase/firestore';
 import { ref, uploadBytesResumable, getDownloadURL } from 'firebase/storage';
 import { updatePassword, updateProfile, reauthenticateWithCredential, EmailAuthProvider } from 'firebase/auth';
-import { FaUser, FaEnvelope, FaPhone, FaMapMarkerAlt, FaEdit, FaSave, FaTimes, FaCamera, FaLock, FaSpinner } from 'react-icons/fa';
+import { FaUser, FaEnvelope, FaPhone, FaEdit, FaSave, FaTimes, FaCamera, FaLock, FaSpinner, FaCheckCircle, FaExclamationCircle, FaMapPin, FaPlusCircle, FaLeaf } from 'react-icons/fa';
 import './ProfilePage.css';
 
 const ProfilePage = () => {
-  const { t } = useTranslation();
+  const { t, i18n } = useTranslation();
   const [loading, setLoading] = useState(true);
   const [editing, setEditing] = useState(false);
   const [changingPassword, setChangingPassword] = useState(false);
@@ -16,10 +16,6 @@ const ProfilePage = () => {
     fullName: '',
     email: '',
     phone: '',
-    addressLine: '',
-    city: '',
-    state: '',
-    pincode: '',
     role: '',
     photoURL: ''
   });
@@ -33,10 +29,24 @@ const ProfilePage = () => {
   const [message, setMessage] = useState({ type: '', text: '' });
   const [uploadingPhoto, setUploadingPhoto] = useState(false);
   const [uploadProgress, setUploadProgress] = useState(0);
+  const [passwordMessage, setPasswordMessage] = useState({ type: '', text: '' });
+  const [newAddress, setNewAddress] = useState({
+    addressLine: '',
+    city: '',
+    state: '',
+    pincode: '',
+    isDefault: false
+  });
+  const [showAddressForm, setShowAddressForm] = useState(false);
 
   const showMessage = useCallback((type, text) => {
     setMessage({ type, text });
     setTimeout(() => setMessage({ type: '', text: '' }), 5000);
+  }, []);
+
+  const showPasswordMessage = useCallback((type, text) => {
+    setPasswordMessage({ type, text });
+    setTimeout(() => setPasswordMessage({ type: '', text: '' }), 5000);
   }, []);
 
   const fetchUserData = useCallback(async () => {
@@ -48,19 +58,21 @@ const ProfilePage = () => {
       }
       const userDoc = await getDoc(doc(db, 'users', user.uid));
       const firestoreData = userDoc.exists() ? userDoc.data() : {};
+      
+      // Cache busting for the image
+      const photoURL = firestoreData.photoURL || user.photoURL || '';
+      const displayPhotoURL = photoURL ? `${photoURL}${photoURL.includes('?') ? '&' : '?'}t=${Date.now()}` : '';
+
       const data = {
         fullName: firestoreData.name || user.displayName || '',
         email: user.email || '',
         phone: firestoreData.phoneNumber || firestoreData.phone || '',
-        addressLine: firestoreData.addressLine || '',
-        city: firestoreData.city || '',
-        state: firestoreData.state || '',
-        pincode: firestoreData.pincode || '',
         role: firestoreData.role || '',
-        photoURL: user.photoURL || firestoreData.photoURL || ''
+        photoURL: displayPhotoURL
       };
       setUserData(data);
       setOriginalData(data);
+      setAddresses(firestoreData.savedAddresses || []);
       setLoading(false);
     } catch (error) {
       console.error('Error fetching user data:', error);
@@ -70,7 +82,15 @@ const ProfilePage = () => {
   }, [showMessage, t]);
 
   useEffect(() => {
-    fetchUserData();
+    const unsubscribe = auth.onAuthStateChanged((user) => {
+      if (user) {
+        fetchUserData();
+      } else {
+        setLoading(false);
+      }
+    });
+
+    return () => unsubscribe();
   }, [fetchUserData]);
 
   const handleInputChange = (e) => {
@@ -101,38 +121,37 @@ const ProfilePage = () => {
       if (!user) return;
       await updateProfile(user, {
         displayName: userData.fullName,
-        photoURL: userData.photoURL || null
       });
       await updateDoc(doc(db, 'users', user.uid), {
         name: userData.fullName,
         phone: userData.phone,
         phoneNumber: userData.phone,
-        addressLine: userData.addressLine,
-        city: userData.city,
-        state: userData.state,
-        pincode: userData.pincode,
-        photoURL: userData.photoURL || '',
         updatedAt: new Date().toISOString()
       });
       setOriginalData(userData);
       setEditing(false);
-      showMessage('success', t('profile_updated'));
+      showMessage('success', t('profile_updated', 'Profile updated successfully!'));
     } catch (error) {
       console.error('Error updating profile:', error);
-      showMessage('error', t('profile_update_error'));
+      showMessage('error', t('profile_update_error', 'Failed to update profile'));
     }
   };
 
   const handleChangePassword = async (e) => {
     e.preventDefault();
     
+    if (passwordData.currentPassword === '') {
+      showPasswordMessage('error', 'Please enter your current password');
+      return;
+    }
+
     if (passwordData.newPassword !== passwordData.confirmPassword) {
-      showMessage('error', t('passwords_dont_match'));
+      showPasswordMessage('error', t('passwords_dont_match'));
       return;
     }
 
     if (passwordData.newPassword.length < 6) {
-      showMessage('error', t('password_too_short'));
+      showPasswordMessage('error', t('password_too_short'));
       return;
     }
 
@@ -144,13 +163,13 @@ const ProfilePage = () => {
       await updatePassword(user, passwordData.newPassword);
       setPasswordData({ currentPassword: '', newPassword: '', confirmPassword: '' });
       setChangingPassword(false);
-      showMessage('success', t('password_changed'));
+      showPasswordMessage('success', t('password_changed'));
     } catch (error) {
       console.error('Error changing password:', error);
       if (error.code === 'auth/wrong-password' || error.code === 'auth/invalid-credential') {
-        showMessage('error', t('current_password_wrong') || 'Current password is incorrect');
+        showPasswordMessage('error', t('current_password_wrong') || 'Current password is incorrect');
       } else {
-        showMessage('error', t('password_change_error'));
+        showPasswordMessage('error', t('password_change_error'));
       }
     }
   };
@@ -158,6 +177,51 @@ const ProfilePage = () => {
   const handleCancel = () => {
     setUserData(originalData);
     setEditing(false);
+  };
+
+  const handleAddAddress = async (e) => {
+    e.preventDefault();
+    if (!newAddress.addressLine || !newAddress.city || !newAddress.pincode) {
+      showMessage('error', 'Please fill all required address fields');
+      return;
+    }
+    
+    try {
+      const user = auth.currentUser;
+      if (!user) return;
+      
+      const updatedAddresses = [...addresses, newAddress];
+      if (newAddress.isDefault) {
+        updatedAddresses.forEach((addr, idx) => {
+          if (idx !== updatedAddresses.length - 1) addr.isDefault = false;
+        });
+      }
+      
+      await updateDoc(doc(db, 'users', user.uid), {
+        savedAddresses: updatedAddresses
+      });
+      
+      setAddresses(updatedAddresses);
+      setShowAddressForm(false);
+      setNewAddress({ addressLine: '', city: '', state: '', pincode: '', isDefault: false });
+      showMessage('success', t('address_added', 'Address added successfully!'));
+    } catch (err) {
+      console.error('Error adding address:', err);
+      showMessage('error', t('address_add_error', 'Failed to add address'));
+    }
+  };
+
+  const deleteAddress = async (index) => {
+    try {
+      const user = auth.currentUser;
+      if (!user) return;
+      const updated = addresses.filter((_, i) => i !== index);
+      await updateDoc(doc(db, 'users', user.uid), { savedAddresses: updated });
+      setAddresses(updated);
+      showMessage('success', t('address_deleted', 'Address removed'));
+    } catch (err) {
+      showMessage('error', t('address_delete_error', 'Failed to remove address'));
+    }
   };
 
   /* ── Avatar colour helper ─────────────────────── */
@@ -180,9 +244,16 @@ const ProfilePage = () => {
 
     // Client-side size guard (5 MB)
     if (file.size > 5 * 1024 * 1024) {
-      showMessage('error', 'Image too large. Maximum size is 5 MB.');
+      showMessage('error', t('file_too_large', 'File is too large. Max size 5MB.'));
       return;
     }
+
+    // 1. Immediate local preview
+    const reader = new FileReader();
+    reader.onload = (event) => {
+      setUserData(prev => ({ ...prev, photoURL: event.target.result }));
+    };
+    reader.readAsDataURL(file);
 
     setUploadingPhoto(true);
     setUploadProgress(0);
@@ -198,29 +269,42 @@ const ProfilePage = () => {
           setUploadProgress(pct);
         },
         (error) => {
-          console.error('Upload error:', error);
-          showMessage('error', 'Photo upload failed. Please try again.');
+          console.error('Upload Error:', error);
+          showMessage('error', t('photo_upload_failed', 'Photo upload failed. Please check your connection.'));
           setUploadingPhoto(false);
+          // Revert preview on failure
+          setUserData(prev => ({ ...prev, photoURL: originalData.photoURL }));
         },
         async () => {
           const downloadURL = await getDownloadURL(uploadTask.snapshot.ref);
+          const finalPhotoURL = `${downloadURL}${downloadURL.includes('?') ? '&' : '?'}t=${Date.now()}`;
+          console.log('Setting final photo URL:', finalPhotoURL);
 
-          // Update Firebase Auth profile
+          setUserData((prev) => ({ ...prev, photoURL: finalPhotoURL }));
+          setOriginalData((prev) => ({ ...prev, photoURL: finalPhotoURL }));
+
           await updateProfile(user, { photoURL: downloadURL });
-
-          // Persist to Firestore so it survives page refresh
+          console.log('Auth profile updated');
           await updateDoc(doc(db, 'users', user.uid), { photoURL: downloadURL });
+          console.log('Firestore doc updated');
 
-          setUserData((prev) => ({ ...prev, photoURL: downloadURL }));
-          setOriginalData((prev) => ({ ...prev, photoURL: downloadURL }));
-          showMessage('success', 'Profile photo updated!');
+          // Sync with localStorage if it exists (for other components)
+          const storedUser = localStorage.getItem('currentUser');
+          if (storedUser) {
+            const parsed = JSON.parse(storedUser);
+            localStorage.setItem('currentUser', JSON.stringify({ ...parsed, photoURL: downloadURL }));
+            console.log('localStorage updated');
+          }
+
+          showMessage('success', t('photo_updated', 'Profile photo updated!'));
           setUploadingPhoto(false);
         }
       );
     } catch (err) {
-      console.error('Upload error:', err);
-      showMessage('error', 'Photo upload failed. Please try again.');
+      console.error('Outer upload error:', err);
+      showMessage('error', t('photo_upload_failed', 'Photo upload failed.'));
       setUploadingPhoto(false);
+      setUserData(prev => ({ ...prev, photoURL: originalData.photoURL }));
     }
   };
 
@@ -233,20 +317,22 @@ const ProfilePage = () => {
   }
 
   return (
-    <div className="profile-page-container">
+    <div className="profile-page-container" key={i18n.language}>
+      {/* Visual Background Blobs are handled in CSS */}
       <div className="profile-header">
-        <h1>{t('profile_settings')}</h1>
+        <h1>{t('profile_settings', 'Profile Settings')}</h1>
       </div>
 
       {/* Message Alert */}
       {message.text && (
-        <div className={`message alert ${message.type}`}>
-          {message.text}
+        <div className={`message alert ${message.type === 'success' ? 'success' : 'error'}`}>
+          {message.type === 'success' ? <FaCheckCircle style={{fontSize:18}}/> : <FaExclamationCircle style={{fontSize:18}}/>}
+          <span>{message.text}</span>
         </div>
       )}
 
       <div className="profile-content">
-        {/* Profile Photo Section */}
+        {/* Profile Sidebar Info Section */}
         <div className="profile-photo-section">
           <div className="photo-container">
             {userData.photoURL ? (
@@ -268,223 +354,273 @@ const ProfilePage = () => {
               </div>
             )}
 
-            {/* Camera button — always visible, not just during editing */}
-            <label className={`photo-upload-btn ${uploadingPhoto ? 'disabled' : ''}`}>
+            <label 
+              htmlFor="photo-upload-input"
+              className={`photo-upload-btn ${uploadingPhoto ? 'disabled' : ''}`}
+              title={t('change_photo', 'Change Profile Photo')}
+            >
               <FaCamera />
-              <input
-                type="file"
-                accept="image/*"
-                onChange={handlePhotoUpload}
-                disabled={uploadingPhoto}
-                style={{ display: 'none' }}
-              />
             </label>
+            <input
+              id="photo-upload-input"
+              type="file"
+              accept="image/*"
+              onChange={handlePhotoUpload}
+              style={{ display: 'none' }}
+              disabled={uploadingPhoto}
+            />
           </div>
           <div className="profile-name">
-            <h2>{userData.fullName || 'User'}</h2>
-            <p className="user-role">{userData.role === 'farmer' ? t('farmer') : t('consumer')}</p>
+            <h2>{userData.fullName || t('profile_user_placeholder', 'User')}</h2>
+            <p className="user-role">
+              {userData.role === 'farmer' ? (
+                <><FaLeaf style={{marginRight:6, fontSize:12}}/> {t('farmer', 'Farmer')}</>
+              ) : (
+                <><FaUser style={{marginRight:6, fontSize:12}}/> {t('consumer', 'Consumer')}</>
+              )}
+            </p>
           </div>
         </div>
 
-        {/* Profile Information */}
-        <div className="profile-info-section">
-          <div className="section-header">
-            <h3>{t('personal_info')}</h3>
-            {!editing ? (
-              <button className="edit-btn" onClick={() => setEditing(true)}>
-                <FaEdit /> {t('edit')}
-              </button>
-            ) : (
-              <div className="edit-actions">
-                <button className="cancel-btn" onClick={handleCancel}>
-                  <FaTimes /> {t('cancel')}
+        {/* Main Content Area */}
+        <div className="profile-main-area">
+          {/* Personal Information */}
+          <div className="profile-info-section">
+            <div className="section-header">
+              <h3><FaUser /> {t('personal_info', 'Personal Information')}</h3>
+              {!editing ? (
+                <button className="edit-btn" onClick={() => setEditing(true)}>
+                  <FaEdit /> {t('edit', 'Edit Profile')}
                 </button>
-                <button className="save-btn" onClick={handleSaveProfile}>
-                  <FaSave /> {t('save')}
-                </button>
+              ) : (
+                <div className="edit-actions">
+                  <button className="cancel-btn" onClick={handleCancel}>
+                    <FaTimes /> {t('cancel', 'Cancel')}
+                  </button>
+                  <button className="save-btn" onClick={handleSaveProfile}>
+                    <FaSave /> {t('save', 'Save Changes')}
+                  </button>
+                </div>
+              )}
+            </div>
+
+            <div className="info-grid">
+              <div className="info-field">
+                <label><FaUser /> {t('full_name', 'Full Name')}</label>
+                <input
+                  type="text"
+                  name="fullName"
+                  value={userData.fullName}
+                  onChange={handleInputChange}
+                  disabled={!editing}
+                  placeholder={t('profile_placeholder_name', 'Your full name')}
+                />
               </div>
+
+              <div className="info-field">
+                <label><FaEnvelope /> {t('email', 'Email Address')}</label>
+                <input
+                  type="email"
+                  name="email"
+                  value={userData.email}
+                  disabled
+                  className="disabled-field"
+                />
+              </div>
+
+              <div className="info-field">
+                <label><FaPhone /> {t('phone', 'Phone Number')}</label>
+                <input
+                  type="tel"
+                  name="phone"
+                  value={userData.phone}
+                  onChange={handleInputChange}
+                  disabled={!editing}
+                  placeholder={t('profile_placeholder_phone', '10-digit mobile number')}
+                />
+              </div>
+            </div>
+          </div>
+
+          {/* Change Password Section */}
+          <div className="password-section">
+            <div className="section-header">
+              <h3><FaLock /> {t('profile_security_heading', 'Security & Password')}</h3>
+              {!changingPassword ? (
+                <button className="edit-btn secondary-btn" onClick={() => setChangingPassword(true)}>
+                  <FaEdit /> {t('change_password', 'Change Password')}
+                </button>
+              ) : (
+                <button className="cancel-password-btn cancel-btn" onClick={() => setChangingPassword(false)}>
+                  <FaTimes /> {t('cancel', 'Cancel')}
+                </button>
+              )}
+            </div>
+
+            {passwordMessage.text && (
+              <div className={`message alert ${passwordMessage.type === 'success' ? 'success' : 'error'}`} style={{margin: '10px 0'}}>
+                {passwordMessage.type === 'success' ? <FaCheckCircle /> : <FaExclamationCircle />}
+                <span>{passwordMessage.text}</span>
+              </div>
+            )}
+
+            {changingPassword && (
+              <form onSubmit={handleChangePassword} className="password-form">
+                <div className="info-field">
+                  <label>{t('current_password', 'Current Password')}</label>
+                  <input
+                    type="password"
+                    name="currentPassword"
+                    value={passwordData.currentPassword}
+                    onChange={handlePasswordChange}
+                    required
+                    placeholder="••••••••"
+                  />
+                </div>
+
+                <div className="info-field">
+                  <label>{t('new_password', 'New Password')}</label>
+                  <input
+                    type="password"
+                    name="newPassword"
+                    value={passwordData.newPassword}
+                    onChange={handlePasswordChange}
+                    required
+                    minLength="6"
+                    placeholder="••••••••"
+                  />
+                </div>
+
+                <div className="info-field">
+                  <label>{t('confirm_password', 'Confirm New Password')}</label>
+                  <input
+                    type="password"
+                    name="confirmPassword"
+                    value={passwordData.confirmPassword}
+                    onChange={handlePasswordChange}
+                    required
+                    placeholder="••••••••"
+                  />
+                </div>
+
+                <div className="edit-actions">
+                  <button 
+                    type="button" 
+                    className="cancel-btn" 
+                    onClick={() => setChangingPassword(false)}
+                  >
+                    <FaTimes /> {t('cancel', 'Cancel')}
+                  </button>
+                  <button type="submit" className="save-btn">
+                    <FaSave /> {t('save', 'Update Password')}
+                  </button>
+                </div>
+              </form>
             )}
           </div>
 
-          <div className="info-grid">
-            <div className="info-field">
-              <label><FaUser /> {t('full_name')}</label>
-              <input
-                type="text"
-                name="fullName"
-                value={userData.fullName}
-                onChange={handleInputChange}
-                disabled={!editing}
-                placeholder={t('enter_full_name')}
-              />
-            </div>
-
-            <div className="info-field">
-              <label><FaEnvelope /> {t('email')}</label>
-              <input
-                type="email"
-                name="email"
-                value={userData.email}
-                disabled
-                className="disabled-field"
-              />
-            </div>
-
-            <div className="info-field">
-              <label><FaPhone /> {t('phone')}</label>
-              <input
-                type="tel"
-                name="phone"
-                value={userData.phone}
-                onChange={handleInputChange}
-                disabled={!editing}
-                placeholder={t('enter_phone')}
-              />
-            </div>
-
-            <div className="info-field full-width">
-              <label><FaMapMarkerAlt /> {t('address')}</label>
-              <input
-                type="text"
-                name="addressLine"
-                value={userData.addressLine}
-                onChange={handleInputChange}
-                disabled={!editing}
-                placeholder={t('enter_address')}
-              />
-            </div>
-
-            <div className="info-field">
-              <label>{t('city')}</label>
-              <input
-                type="text"
-                name="city"
-                value={userData.city}
-                onChange={handleInputChange}
-                disabled={!editing}
-                placeholder={t('enter_city')}
-              />
-            </div>
-
-            <div className="info-field">
-              <label>{t('state')}</label>
-              <input
-                type="text"
-                name="state"
-                value={userData.state}
-                onChange={handleInputChange}
-                disabled={!editing}
-                placeholder={t('enter_state')}
-              />
-            </div>
-
-            <div className="info-field">
-              <label>{t('pincode')}</label>
-              <input
-                type="text"
-                name="pincode"
-                value={userData.pincode}
-                onChange={handleInputChange}
-                disabled={!editing}
-                placeholder={t('enter_pincode')}
-              />
-            </div>
-          </div>
-        </div>
-
-        {/* Change Password Section */}
-        <div className="password-section">
-          <div className="section-header">
-            <h3><FaLock /> {t('change_password')}</h3>
-            {!changingPassword && (
-              <button className="edit-btn" onClick={() => setChangingPassword(true)}>
-                {t('change_password')}
-              </button>
-            )}
-          </div>
-
-          {changingPassword && (
-            <form onSubmit={handleChangePassword} className="password-form">
-              <div className="info-field">
-                <label>{t('current_password')}</label>
-                <input
-                  type="password"
-                  name="currentPassword"
-                  value={passwordData.currentPassword}
-                  onChange={handlePasswordChange}
-                  required
-                />
-              </div>
-
-              <div className="info-field">
-                <label>{t('new_password')}</label>
-                <input
-                  type="password"
-                  name="newPassword"
-                  value={passwordData.newPassword}
-                  onChange={handlePasswordChange}
-                  required
-                  minLength="6"
-                />
-              </div>
-
-              <div className="info-field">
-                <label>{t('confirm_password')}</label>
-                <input
-                  type="password"
-                  name="confirmPassword"
-                  value={passwordData.confirmPassword}
-                  onChange={handlePasswordChange}
-                  required
-                />
-              </div>
-
-              <div className="edit-actions">
-                <button 
-                  type="button" 
-                  className="cancel-btn" 
-                  onClick={() => setChangingPassword(false)}
-                >
-                  <FaTimes /> {t('cancel')}
+          {/* Saved Addresses */}
+          <div className="saved-addresses-section">
+            <div className="section-header">
+              <h3><FaMapPin /> {t('saved_addresses', 'Saved Addresses')}</h3>
+              {!showAddressForm && (
+                <button className="add-address-btn save-btn" onClick={() => setShowAddressForm(true)} style={{padding:'8px 16px', fontSize:'0.75rem'}}>
+                  <FaPlusCircle /> {t('add_address', 'Add New Address')}
                 </button>
-                <button type="submit" className="save-btn">
-                  <FaSave /> {t('save')}
-                </button>
-              </div>
-            </form>
-          )}
-        </div>
+              )}
+            </div>
 
-        {/* Saved Addresses */}
-        <div className="saved-addresses-section">
-          <div className="section-header">
-            <h3>{t('saved_addresses')}</h3>
-            <button className="edit-btn">
-              {t('add_address')}
-            </button>
-          </div>
-          
-          {addresses.length > 0 ? (
-            <div className="addresses-grid">
-              {addresses.map((address, index) => (
-                <div key={index} className="address-card">
-                  <div className="address-content">
-                    <p className="address-line">{address.addressLine}</p>
-                    <p>{address.city}, {address.state} - {address.pincode}</p>
-                    {address.isDefault && (
-                      <span className="default-badge">{t('default_address')}</span>
-                    )}
+            {showAddressForm && (
+              <div className="address-form-container" style={{background: 'rgba(255,255,255,0.5)', padding: '20px', borderRadius: '16px', marginBottom: '20px', border: '1px solid #e2e8f0'}}>
+                <h4 style={{marginBottom: '15px'}}>{t('add_address_details', 'Address Details')}</h4>
+                <div className="info-grid">
+                  <div className="info-field full-width">
+                    <label>{t('address', 'Address Line')}</label>
+                    <input
+                      type="text"
+                      placeholder={t('profile_placeholder_address', 'Flat/House No, Street, Locality')}
+                      value={newAddress.addressLine}
+                      onChange={(e) => setNewAddress({...newAddress, addressLine: e.target.value})}
+                      required
+                    />
                   </div>
-                  <div className="address-actions">
-                    <button className="icon-btn"><FaEdit /></button>
-                    <button className="icon-btn"><FaTimes /></button>
+                  <div className="info-field">
+                    <label>{t('city', 'City')}</label>
+                    <input
+                      type="text"
+                      placeholder={t('enter_city', 'City')}
+                      value={newAddress.city}
+                      onChange={(e) => setNewAddress({...newAddress, city: e.target.value})}
+                      required
+                    />
+                  </div>
+                  <div className="info-field">
+                    <label>{t('state', 'State')}</label>
+                    <input
+                      type="text"
+                      placeholder={t('enter_state', 'State')}
+                      value={newAddress.state}
+                      onChange={(e) => setNewAddress({...newAddress, state: e.target.value})}
+                      required
+                    />
+                  </div>
+                  <div className="info-field">
+                    <label>{t('pincode', 'Pincode')}</label>
+                    <input
+                      type="text"
+                      placeholder={t('enter_pincode', 'Pincode')}
+                      value={newAddress.pincode}
+                      onChange={(e) => setNewAddress({...newAddress, pincode: e.target.value})}
+                      required
+                    />
+                  </div>
+                  <div className="info-field" style={{flexDirection:'row', alignItems:'center', gap: '10px', paddingTop: '10px'}}>
+                    <input
+                      type="checkbox"
+                      id="default-check"
+                      checked={newAddress.isDefault}
+                      onChange={(e) => setNewAddress({...newAddress, isDefault: e.target.checked})}
+                      style={{width:'18px', height:'18px'}}
+                    />
+                    <label htmlFor="default-check" style={{marginTop:0}}>{t('set_as_default', 'Set as default address')}</label>
                   </div>
                 </div>
-              ))}
-            </div>
-          ) : (
-            <p className="no-data">{t('no_saved_addresses')}</p>
-          )}
+                <div className="edit-actions" style={{marginTop: '20px'}}>
+                  <button className="cancel-btn" onClick={() => setShowAddressForm(false)}>
+                    <FaTimes /> {t('cancel', 'Cancel')}
+                  </button>
+                  <button className="save-btn" onClick={handleAddAddress}>
+                    <FaSave /> {t('save', 'Save Address')}
+                  </button>
+                </div>
+              </div>
+            )}
+            
+            {addresses.length > 0 ? (
+              <div className="addresses-grid">
+                {addresses.map((address, index) => (
+                  <div key={index} className="address-card">
+                    <div className="address-content">
+                      <p className="address-line">{address.addressLine}</p>
+                      <p style={{fontSize:'0.85rem'}}>{address.city}, {address.state} - {address.pincode}</p>
+                      {address.isDefault && (
+                        <span className="default-badge"><FaCheckCircle style={{marginRight:4}}/> {t('default_address', 'Default Delivery Address')}</span>
+                      )}
+                    </div>
+                    <div className="address-actions">
+                      <button className="icon-btn" title={t('edit', 'Edit')}><FaEdit /></button>
+                      <button className="icon-btn" title={t('delete', 'Delete')} onClick={() => deleteAddress(index)}><FaTimes /></button>
+                    </div>
+                  </div>
+                ))}
+              </div>
+            ) : (
+              <div style={{textAlign:'center', padding:'32px', color:'#94a3b8', border:'2px dashed #e2e8f0', borderRadius:'16px'}}>
+                <FaMapPin style={{fontSize:32, marginBottom:12, opacity:0.3}} />
+                <p className="no-data" style={{padding:0, fontSize:'0.9rem'}}>{t('profile_no_addresses_sub', 'No saved addresses found. Add one to speed up your checkout process.')}</p>
+              </div>
+            )}
+          </div>
         </div>
       </div>
     </div>

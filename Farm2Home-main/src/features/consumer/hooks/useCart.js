@@ -71,7 +71,7 @@ export const useCart = () => {
       const items = localGet();
       const idx = items.findIndex(i => i.id === product.id);
       if (idx >= 0) items[idx].quantity += quantity;
-      else items.push({ ...product, quantity });
+      else items.push({ ...product, quantity, status: 'active' });
       localStorage.setItem(LOCAL_KEY, JSON.stringify(items));
       setCartItems([...items]);
       window.dispatchEvent(new Event('cartUpdated'));
@@ -79,7 +79,9 @@ export const useCart = () => {
     }
     const existing = cartItems.find(i => i.id === product.id);
     const newQty = (existing?.quantity || 0) + quantity;
-    await setDoc(cartDocRef(product.id), { ...product, quantity: newQty }, { merge: true });
+    await setDoc(cartDocRef(product.id), { ...product, quantity: newQty, status: 'active' }, { merge: true });
+    // Dispatch immediate event for Navbar responsiveness
+    window.dispatchEvent(new Event('cartUpdated'));
   }, [uid, cartItems, cartDocRef]);
 
   const removeFromCart = useCallback(async (productId) => {
@@ -91,19 +93,40 @@ export const useCart = () => {
       return;
     }
     await deleteDoc(cartDocRef(productId));
+    window.dispatchEvent(new Event('cartUpdated'));
   }, [uid, cartDocRef]);
 
   const updateQuantity = useCallback(async (productId, newQuantity) => {
-    if (newQuantity <= 0) { removeFromCart(productId); return; }
+    if (newQuantity <= 0) {
+      await removeFromCart(productId);
+      return;
+    }
     if (!uid) {
       const items = localGet().map(i => i.id === productId ? { ...i, quantity: newQuantity } : i);
       localStorage.setItem(LOCAL_KEY, JSON.stringify(items));
-      setCartItems(items);
+      setCartItems([...items]);
       window.dispatchEvent(new Event('cartUpdated'));
       return;
     }
+    const items = cartItems.map(i => i.id === productId ? { ...i, quantity: newQuantity } : i);
+    localStorage.setItem(LOCAL_KEY, JSON.stringify(items));
     await setDoc(cartDocRef(productId), { quantity: newQuantity }, { merge: true });
-  }, [uid, removeFromCart, cartDocRef]);
+    window.dispatchEvent(new Event('cartUpdated'));
+  }, [uid, cartItems, removeFromCart, cartDocRef]);
+
+  const updateItemStatus = useCallback(async (productId, status = 'active') => {
+    if (!uid) {
+      const items = localGet().map(i => i.id === productId ? { ...i, status } : i);
+      localStorage.setItem(LOCAL_KEY, JSON.stringify(items));
+      setCartItems([...items]);
+      window.dispatchEvent(new Event('cartUpdated'));
+      return;
+    }
+    const items = cartItems.map(i => i.id === productId ? { ...i, status } : i);
+    localStorage.setItem(LOCAL_KEY, JSON.stringify(items));
+    await setDoc(cartDocRef(productId), { status }, { merge: true });
+    window.dispatchEvent(new Event('cartUpdated'));
+  }, [uid, cartItems, cartDocRef]);
 
   const clearCart = useCallback(async () => {
     if (!uid) {
@@ -131,6 +154,7 @@ export const useCart = () => {
     addToCart,
     removeFromCart,
     updateQuantity,
+    updateItemStatus,
     clearCart,
     getTotalPrice,
     getTotalItems,

@@ -1,4 +1,4 @@
-﻿{
+{
   "translation": {
     "welcome": "Welcome to Farm2Home",
     "signup": "Sign Up",
@@ -733,6 +733,28 @@
     "pc_already_requested": "Already Requested",
     "pc_trending": "Trending",
     "pc_featured": "Featured",
-    "cd_footer_secure": "100% Secure"
+    "cd_footer_secure": "100% Secure",
+    "profile_user_placeholder": "User",
+    "profile_security_heading": "Security & Password",
+    "profile_no_addresses_sub": "No saved addresses found. Add one to speed up your checkout process.",
+    "profile_placeholder_name": "Your full name",
+    "profile_placeholder_phone": "10-digit mobile number",
+    "profile_placeholder_address": "Flat/House No, Street, Locality",
+    "cart_title": "My Shopping Bag",
+    "cart_item_count": "Items Total",
+    "cart_gross": "Gross Amount",
+    "cart_savings": "Direct Savings",
+    "cart_shipping": "Shipping Fee",
+    "cart_total": "Net Total",
+    "cart_savings_summary": "Total Savings on Order",
+    "cart_order_success": "Order Placed Successfully!",
+    "cart_view_orders": "View My Orders",
+    "cart_continue": "Continue Shopping",
+    "cart_secure_msg": "Authentic fresh harvest. Secure Direct Settlement.",
+    "cart_buy_btn": "BUY",
+    "cart_save_btn": "SAVE",
+    "cart_remove_btn": "REMOVE",
+    "cart_move_to_bag": "MOVE TO CART",
+    "cart_billing_summary": "Billing Summary"
   }
 }
